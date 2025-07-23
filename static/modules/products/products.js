@@ -1133,3 +1133,26 @@ window.onclick = function(event) {
         event.target.style.display = 'none';
     }
 }
+
+window.getSelectedProductsForProcessing = () => {
+    if (moduleState.selectedProducts.size === 0) {
+        return [];
+    }
+
+    const selectedArray = Array.from(moduleState.selectedProducts);
+    const productsToProcess = moduleState.filteredProducts
+        .filter(p => selectedArray.includes(p.SKU))
+        .map(p => ({
+            sku: p.SKU,
+            nombre: p.Descripción,
+            marca: p.Marca,
+            modelo: p.Modelo,
+            familia: p.Familia,
+            precio: p.Precio_USD_con_IVA,
+            stock: p.Stock,
+            pdf_url: p.URL_PDF,
+            row_data: p
+        }));
+    
+    return productsToProcess;
+};

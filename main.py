@@ -337,14 +337,6 @@ def start_browser():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
-@app.route('/api/navigation/check-login')
-def check_login():
-    """Verificar estado de login"""
-    try:
-        logged_in = selenium_handler.check_login_status()
-        return jsonify({'logged_in': logged_in})
-    except Exception as e:
-        return jsonify({'logged_in': False, 'error': str(e)})
 
 @app.route('/api/navigation/close-browser', methods=['POST'])
 def close_browser():
@@ -454,17 +446,23 @@ def stop_navigation():
 def validate_api_key():
     """Validar API key de Google Gemini"""
     try:
-        api_key = request.json.get('api_key', '')
+        api_key = request.json.get('api_key')
         
+        # Si no se proporciona una clave, se usa la que está por defecto en el handler
+        if not api_key:
+            api_key = ai_handler.api_key
+
         if ai_handler.initialize_model(api_key):
             app_state['ai_configured'] = True
             return jsonify({'success': True})
         else:
+            app_state['ai_configured'] = False
             return jsonify({
                 'success': False,
-                'error': 'API key inválida'
+                'error': 'API key inválida o error de configuración.'
             })
     except Exception as e:
+        app_state['ai_configured'] = False
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/ai-generator/prompt-versions')
@@ -624,6 +622,19 @@ def open_browser():
     time.sleep(2)
     webbrowser.open('http://localhost:5001')
 
+def initialize_ai_model():
+    """Inicializar el modelo de IA en segundo plano"""
+    logger.info("🤖 Intentando inicializar el modelo de IA con la clave por defecto...")
+    if ai_handler.api_key:
+        if ai_handler.initialize_model(ai_handler.api_key):
+            app_state['ai_configured'] = True
+            logger.info("✅ Modelo de IA configurado correctamente al inicio.")
+        else:
+            app_state['ai_configured'] = False
+            logger.warning("⚠️ No se pudo configurar el modelo de IA al inicio. Se requerirá una clave válida en la UI.")
+    else:
+        logger.info("No se encontró API key por defecto. Se configurará desde la UI.")
+
 if __name__ == '__main__':
     # Crear directorios
     create_directories()
@@ -640,6 +651,9 @@ if __name__ == '__main__':
     
     # Abrir navegador en thread separado
     threading.Thread(target=open_browser, daemon=True).start()
+    
+    # Inicializar IA en thread separado
+    threading.Thread(target=initialize_ai_model, daemon=True).start()
     
     # Iniciar aplicación
     app.run(debug=False, host='0.0.0.0', port=5001)

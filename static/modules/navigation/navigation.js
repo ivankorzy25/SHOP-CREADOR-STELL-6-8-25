@@ -20,7 +20,7 @@ let statusTimer = null;
 let uptimeTimer = null;
 
 // URL del backend (ajustar según tu configuración)
-const API_BASE_URL = 'http://localhost:5000/api/navigation';
+const API_BASE_URL = 'http://localhost:5001/api/navigation';
 
 // Inicialización
 document.addEventListener('DOMContentLoaded', function() {
@@ -42,7 +42,8 @@ async function startBrowser() {
         if (result.success) {
             moduleState.isConnected = true;
             addLog('Navegador iniciado correctamente', 'INFO');
-            addLog('Por favor, inicia sesión manualmente en Stelorder', 'INFO');
+            addLog('Por favor, inicia sesión manualmente en Stelorder y luego presiona "Confirmar Login"', 'INFO');
+            document.getElementById('confirm-login').disabled = false; // Habilitar directamente
             updateUI();
         } else {
             addLog(`Error: ${result.message}`, 'ERROR');
@@ -81,18 +82,45 @@ async function checkLogin() {
 }
 
 async function confirmLogin() {
-    // Emit event to other modules that login is confirmed
-    window.dispatchEvent(new CustomEvent('navigation:login-confirmed', {
-        detail: { timestamp: new Date().toISOString() }
-    }));
+    addLog('Login confirmado por el usuario.', 'INFO');
     
-    addLog('Login confirmado. Listo para procesar productos.', 'INFO');
-    document.getElementById('confirm-login').disabled = true;
+    // Obtener productos seleccionados desde el módulo de productos
+    const productsFrame = window.parent.document.getElementById('products-frame');
+    const productsToProcess = productsFrame.contentWindow.getSelectedProductsForProcessing();
     
-    // Habilitar controles de navegación
-    document.querySelectorAll('.browser-actions button').forEach(btn => {
-        btn.disabled = false;
-    });
+    if (!productsToProcess || productsToProcess.length === 0) {
+        alert('No hay productos seleccionados en la pestaña "Productos". Por favor, selecciona los productos que deseas procesar y vuelve a confirmar el login.');
+        return;
+    }
+    
+    addLog(`Se encontraron ${productsToProcess.length} productos seleccionados. Iniciando proceso...`, 'INFO');
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/process-products`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                products: productsToProcess,
+                settings: { use_ai: true, update_seo: true } // Puedes ajustar esto si es necesario
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            moduleState.isProcessing = true;
+            moduleState.stats.total = productsToProcess.length;
+            addLog(`Procesamiento de ${productsToProcess.length} productos iniciado.`, 'INFO');
+            document.getElementById('confirm-login').disabled = true;
+            updateUI();
+        } else {
+            addLog(`Error al iniciar procesamiento: ${result.error}`, 'ERROR');
+            alert(`Error al iniciar procesamiento: ${result.error}`);
+        }
+    } catch (error) {
+        addLog(`Error de comunicación al iniciar procesamiento: ${error.message}`, 'ERROR');
+        alert(`Error de comunicación al iniciar procesamiento: ${error.message}`);
+    }
 }
 
 async function closeBrowser() {
@@ -301,8 +329,13 @@ function updateUI() {
     const connected = moduleState.isConnected;
     
     document.getElementById('start-browser').disabled = connected;
-    document.getElementById('check-login').disabled = !connected;
+    document.getElementById('check-login').style.display = 'none'; // Ocultar botón de verificar
     document.getElementById('close-browser').disabled = !connected;
+    
+    // El botón de confirmar se maneja por separado
+    if (!connected) {
+        document.getElementById('confirm-login').disabled = true;
+    }
     
     document.querySelectorAll('.browser-actions button').forEach(btn => {
         btn.disabled = !connected;

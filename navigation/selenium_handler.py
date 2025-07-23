@@ -76,18 +76,6 @@ class SeleniumHandler:
             
         return result
     
-    def check_login_status(self) -> bool:
-        """Verifica el estado de login"""
-        if not self.navigator:
-            return False
-            
-        is_logged = self.navigator.check_login_status()
-        
-        if is_logged:
-            self._log("Login confirmado")
-        
-        return is_logged
-    
     def process_products(self, products: List[Dict[str, Any]], 
                         generation_callback: Callable) -> None:
         """Procesa una lista de productos"""

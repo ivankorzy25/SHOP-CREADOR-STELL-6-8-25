@@ -50,11 +50,8 @@ class BrowserManager:
         return default_config
     
     def initialize_browser(self) -> Dict[str, Any]:
-        """Inicializa el navegador Chrome con perfil limpio"""
+        """Inicializa el navegador Chrome con perfil persistente"""
         try:
-            # Limpiar perfil antes de inicializar
-            self.cleanup_profile()
-            
             # Crear directorio de perfil si no existe
             os.makedirs(self.profile_path, exist_ok=True)
             
@@ -99,11 +96,6 @@ class BrowserManager:
             # Inicializar driver
             service = Service()
             self.driver = webdriver.Chrome(service=service, options=options)
-            
-            # Limpiar cookies y storage al iniciar
-            self.driver.delete_all_cookies()
-            self.driver.execute_script("window.localStorage.clear();")
-            self.driver.execute_script("window.sessionStorage.clear();")
             
             # Configurar timeouts
             self.driver.implicitly_wait(self.config["implicit_wait"])

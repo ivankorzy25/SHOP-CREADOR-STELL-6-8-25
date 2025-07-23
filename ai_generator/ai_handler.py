@@ -13,7 +13,7 @@ from pathlib import Path
 class AIHandler:
     """Maneja la generación de descripciones con IA"""
     
-    def __init__(self, api_key: str = None):
+    def __init__(self, api_key: str = "AIzaSyBYjaWimtWtTk3m_4SjFgLQRWPkiu0suiw"):
         self.api_key = api_key
         self.model = None
         self.current_prompt_version = "base"
@@ -42,8 +42,11 @@ class AIHandler:
             print("✅ Modelo de IA inicializado y validado correctamente.")
             return True
         except Exception as e:
-            print(f"❌ Error inicializando o validando el modelo: {e}")
-            # Aquí es donde probablemente se captura el error de autenticación/proyecto
+            error_message = str(e)
+            if "API key not valid" in error_message:
+                print("❌ Error de autenticación: La API key proporcionada no es válida.")
+            else:
+                print(f"❌ Error inicializando o validando el modelo: {error_message}")
             self.model = None
             return False
     

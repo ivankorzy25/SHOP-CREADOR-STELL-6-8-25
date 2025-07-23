@@ -25,8 +25,9 @@ class PromptManager:
         # Cargar o inicializar historial
         self.history = self._load_history()
         
-        # Asegurar que existe un prompt base
+        # Asegurar que existe un prompt base y que está en el historial
         self._ensure_base_prompt()
+        self._load_base_prompt_into_history_if_missing()
     
     def _load_history(self) -> List[Dict]:
         """Carga el historial de versiones"""
@@ -98,11 +99,28 @@ Recuerda: El objetivo es convencer al cliente de que este es el producto ideal p
     
     def get_current_prompt(self) -> Dict:
         """Obtiene el prompt actualmente activo"""
-        if self.history:
-            return self.history[0]
-        else:
-            self._ensure_base_prompt()
-            return self.history[0]
+        if not self.history:
+            # Si el historial está vacío, carga el base, lo añade y lo devuelve.
+            base_prompt = self.get_base_prompt()
+            if base_prompt:
+                self.history.insert(0, base_prompt)
+                self._save_history()
+                return base_prompt
+            else:
+                # Esto sería un error crítico, pero hay que manejarlo.
+                raise Exception("No se pudo cargar o encontrar el prompt base.")
+        
+        # Si el historial no está vacío, devuelve el más reciente.
+        return self.history[0]
+
+    def _load_base_prompt_into_history_if_missing(self):
+        """Carga el prompt base en el historial si no está presente."""
+        is_base_in_history = any(v.get('is_base') for v in self.history)
+        if not is_base_in_history:
+            base_prompt = self.get_base_prompt()
+            self.history.insert(0, base_prompt)
+            self._save_history()
+            print("INFO: Prompt base cargado en el historial.")
     
     def get_base_prompt(self) -> Dict:
         """Obtiene el prompt base"""

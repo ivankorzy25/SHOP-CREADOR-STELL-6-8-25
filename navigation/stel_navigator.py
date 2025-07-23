@@ -33,31 +33,6 @@ class StelNavigator:
             
         return result
     
-    def check_login_status(self) -> bool:
-        """Verifica si el usuario está logueado"""
-        try:
-            # Buscar elementos que indiquen que estamos logueados
-            # Ajustar según la estructura real de Stelorder
-            logged_indicators = [
-                "//a[@id='ui-id-2']",  # Tab de catálogo
-                "//div[@class='header-usuario']",
-                "//button[contains(@class, 'logout')]"
-            ]
-            
-            for indicator in logged_indicators:
-                try:
-                    self.wait.until(EC.presence_of_element_located((By.XPATH, indicator)))
-                    self.is_logged_in = True
-                    return True
-                except:
-                    continue
-                    
-            return False
-            
-        except Exception as e:
-            print(f"Error verificando login: {e}")
-            return False
-    
     def navigate_to_catalog(self) -> Dict[str, Any]:
         """Navega al catálogo de productos"""
         try:

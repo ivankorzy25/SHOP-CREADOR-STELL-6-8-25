@@ -1,0 +1,14 @@
+2025/07/24-08:22:55.236 1616bc Reusing MANIFEST /Users/ivan/Desktop/github-ivankorzy2025-cloude/claude/browser_profiles/selenium_stel_profile/Default/IndexedDB/https_app.stelorder.com_0.indexeddb.leveldb/MANIFEST-000001
+2025/07/24-08:22:55.236 1616bc Recovering log #89
+2025/07/24-08:22:55.237 1616bc Reusing old log /Users/ivan/Desktop/github-ivankorzy2025-cloude/claude/browser_profiles/selenium_stel_profile/Default/IndexedDB/https_app.stelorder.com_0.indexeddb.leveldb/000089.log 
+2025/07/24-08:22:55.237 1616bc Delete type=2 #88
+2025/07/24-08:22:55.252 1616d0 Level-0 table #94: started
+2025/07/24-08:22:55.254 1616d0 Level-0 table #94: 3311 bytes OK
+2025/07/24-08:22:55.257 1616d0 Delete type=0 #89
+2025/07/24-08:22:55.257 1616bc Manual compaction at level-0 from '\x00>\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00?\x00\x00\x00' @ 0 : 0; will stop at '\x00>\x00\x00\x05' @ 2627 : 1
+2025/07/24-08:22:55.257 1616bc Compacting 1@0 + 1@1 files
+2025/07/24-08:22:55.259 1616bc Generated table #95@0: 186 keys, 2950 bytes
+2025/07/24-08:22:55.259 1616bc Compacted 1@0 + 1@1 files => 2950 bytes
+2025/07/24-08:22:55.260 1616bc compacted to: files[ 0 1 1 0 0 0 0 ]
+2025/07/24-08:22:55.260 1616bc Delete type=2 #94
+2025/07/24-08:22:55.261 1616bc Manual compaction at level-0 from '\x00>\x00\x00\x05' @ 2627 : 1 .. '\x00?\x00\x00\x00' @ 0 : 0; will stop at (end)

@@ -362,11 +362,9 @@ def process_products():
         def generate_descriptions(product):
             if settings.get('use_ai') and app_state['ai_configured']:
                 # Usar IA
-                prompt = prompt_manager.get_current_prompt()['prompt']
                 descripcion_detallada = ai_handler.generate_description(
-                    product['row_data'], 
-                    prompt,
-                    get_contact_config()
+                    product_info=product['row_data'],
+                    config=get_contact_config()
                 )
                 
                 # Generar descripción corta sin HTML
@@ -515,7 +513,7 @@ def generate_preview():
             ai_handler.initialize_model(api_key)
         
         # Generar preview
-        html = ai_handler.preview_with_example(prompt)
+        html = ai_handler.preview_with_example()
         
         return jsonify({
             'success': True,

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # -*- coding: utf-8 -*-
 """
 Módulo para la generación de descripciones HTML premium de productos.
@@ -686,3 +687,139 @@ def generar_css_mejorado():
         .animate-fade-in { animation: fadeInUp 0.6s ease-out; }
     </style>
     '''
+=======
+"""
+Módulo de Generación Premium con IA para STEL Shop
+"""
+
+import json
+from typing import Dict, Any, Optional
+import google.generativeai as genai
+from pathlib import Path
+
+class PremiumGenerator:
+    """
+    Generador de contenido premium que utiliza IA para categorizar productos,
+    extraer datos de PDFs y generar descripciones detalladas y específicas.
+    """
+    
+    def __init__(self, api_key: str):
+        self.model = self._initialize_model(api_key)
+        self.module_path = Path(__file__).parent
+        self.product_templates = self._load_product_templates()
+
+    def _initialize_model(self, api_key: str) -> Optional[genai.GenerativeModel]:
+        """Inicializa y valida el modelo de Google Gemini."""
+        try:
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            # Realizar una prueba simple para validar el modelo
+            model.generate_content("test", generation_config={"max_output_tokens": 5})
+            print("✅ Modelo de IA (Premium Generator) inicializado correctamente.")
+            return model
+        except Exception as e:
+            print(f"❌ Error inicializando el modelo en PremiumGenerator: {e}")
+            return None
+
+    def _load_product_templates(self) -> Dict:
+        """Carga las plantillas de prompts desde un archivo JSON."""
+        template_path = self.module_path / "templates" / "product_templates.json"
+        if template_path.exists():
+            with open(template_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        return {}
+
+    def generate_content(self, product_info: Dict[str, Any], pdf_text: str) -> Dict[str, Any]:
+        """
+        Orquesta el proceso completo de generación de contenido.
+        1. Determina la categoría del producto.
+        2. Extrae las especificaciones técnicas del PDF.
+        3. Genera la descripción de venta.
+        """
+        if not self.model:
+            raise Exception("El modelo de IA no está inicializado.")
+
+        # 1. Determinar la categoría del producto
+        category = self._determine_product_category(product_info, pdf_text)
+        
+        # 2. Extraer especificaciones técnicas del PDF
+        tech_specs = self._extract_tech_specs_from_pdf(product_info, pdf_text, category)
+        
+        # 3. Generar descripción de venta
+        sales_description = self._generate_sales_description(product_info, tech_specs, category)
+        
+        return {
+            "category": category,
+            "technical_specifications": tech_specs,
+            "sales_description": sales_description
+        }
+
+    def _determine_product_category(self, product_info: Dict[str, Any], pdf_text: str) -> str:
+        """Determina la categoría del producto usando IA."""
+        prompt = f"""
+        Analiza la siguiente información de un producto y determina su categoría.
+        
+        Información del producto:
+        - Nombre: {product_info.get('nombre', '')}
+        - Familia: {product_info.get('familia', '')}
+        - Modelo: {product_info.get('modelo', '')}
+        
+        Texto del PDF (extracto):
+        {pdf_text[:1500]}
+
+        Categorías posibles: {', '.join(self.product_templates.keys())}.
+        Si no encaja en ninguna, responde 'generico'.
+        
+        Responde únicamente con el nombre de la categoría en minúsculas (ej: 'grupo_electrogeno').
+        """
+        response = self.model.generate_content(prompt)
+        return response.text.strip()
+
+    def _extract_tech_specs_from_pdf(self, product_info: Dict[str, Any], pdf_text: str, category: str) -> Dict[str, Any]:
+        """Extrae las especificaciones técnicas del PDF usando IA."""
+        template = self.product_templates.get(category, self.product_templates.get('generico', {}))
+        extraction_prompt = template.get('extraction_prompt')
+        
+        if not extraction_prompt:
+            return {"error": "No se encontró un prompt de extracción para esta categoría."}
+            
+        prompt = f"""
+        {extraction_prompt}
+        
+        Texto del PDF para analizar:
+        ---
+        {pdf_text}
+        ---
+        
+        Información adicional del producto (para contexto):
+        - Nombre: {product_info.get('nombre', '')}
+        - Modelo: {product_info.get('modelo', '')}
+        
+        Analiza el texto y devuelve un JSON con los datos. Si un dato no se encuentra, déjalo como null.
+        """
+        
+        response = self.model.generate_content(prompt)
+        
+        try:
+            # Limpiar la respuesta para que sea un JSON válido
+            json_text = response.text.strip().replace('```json', '').replace('```', '')
+            return json.loads(json_text)
+        except json.JSONDecodeError:
+            return {"error": "La IA no devolvió un JSON válido.", "raw_response": response.text}
+
+    def _generate_sales_description(self, product_info: Dict[str, Any], tech_specs: Dict[str, Any], category: str) -> str:
+        """Genera la descripción de venta final."""
+        template = self.product_templates.get(category, self.product_templates.get('generico', {}))
+        description_prompt_template = template.get('description_prompt')
+        
+        if not description_prompt_template:
+            return "No se pudo generar la descripción para esta categoría."
+            
+        # Combinar toda la información para el prompt
+        full_context = {**product_info, **tech_specs}
+        
+        prompt = description_prompt_template.format(**full_context)
+        
+        response = self.model.generate_content(prompt)
+        return response.text.strip()
+>>>>>>> cbaf033 (feat: Implementa generador de contenido premium con IA)

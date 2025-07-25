@@ -1,7 +1,7 @@
-<<<<<<< HEAD
 # -*- coding: utf-8 -*-
 """
 Módulo para la generación de descripciones HTML premium de productos.
+Versión 2.1 - Adaptado a la nueva plantilla, con extracción de datos por IA y más íconos.
 """
 import re
 import requests
@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 
 # ============================================================================
-# ICONOS SVG PARA EL DISEÑO PREMIUM
+# ICONOS SVG AMPLIADOS
 # ============================================================================
 ICONOS_SVG = {
     'potencia': '<svg width="28" height="28" viewBox="0 0 24 24" fill="#ff6600"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>',
@@ -39,9 +39,8 @@ ICONOS_SVG = {
 }
 
 # ============================================================================
-# FUNCIONES AUXILIARES
+# FUNCIONES AUXILIARES (Extracción y Validación de Datos)
 # ============================================================================
-
 def extraer_info_tecnica(row):
     """Extrae y normaliza la información técnica de una fila de datos de la BD."""
     info = {
@@ -98,32 +97,6 @@ def extraer_texto_pdf(pdf_url, print_callback=print):
         print_callback(f"❌ Error al procesar el PDF desde {pdf_url}: {e}")
         return None
 
-def extraer_datos_tecnicos_del_pdf(texto_pdf, info_actual, print_callback=print):
-    """Intenta extraer y actualizar datos técnicos desde el texto de un PDF con regex mejoradas."""
-    info_actualizada = info_actual.copy()
-    
-    patrones = {
-        'potencia_kva': r'(\d{1,4}[\.,]?\d{1,2})\s*kVA',
-        'potencia_kw': r'(\d{1,4}[\.,]?\d{1,2})\s*kW',
-        'voltaje': r'(\d{3}(?:/\d{3})?)\s*V',
-        'consumo': r'Consumo(?: de combustible)?\s*\(?L/h\)?\s*[:\s]*([\d\.]+)',
-        'tanque': r'(?:Capacidad del tanque|Tanque de combustible)\s*\(?L\)?\s*[:\s]*(\d+)',
-        'peso': r'Peso\s*\(?kg\)?\s*[:\s]*(\d+)',
-        'ruido': r'Nivel de ruido\s*\(?dBA?@\d+m\)?\s*[:\s]*(\d+)',
-        'motor': r'Motor\s*[:\s]*([A-Za-z0-9\.\-\s]+)',
-        'alternador': r'Alternador\s*[:\s]*([A-Za-z0-9\.\-\s]+)',
-        'cilindrada': r'Cilindrada\s*\(cc\)\s*[:\s]*(\d+)'
-    }
-    
-    for campo, patron in patrones.items():
-        match = re.search(patron, texto_pdf, re.IGNORECASE | re.DOTALL)
-        if match:
-            valor_extraido = match.group(1).strip()
-            info_actualizada[campo] = valor_extraido
-            print_callback(f"  -> Dato extraído de PDF: {campo} = {valor_extraido}")
-            
-    return info_actualizada
-
 def validar_caracteristicas_producto(info, texto_pdf):
     """Detecta características especiales del producto."""
     caracteristicas = {
@@ -137,16 +110,31 @@ def validar_caracteristicas_producto(info, texto_pdf):
     if texto_pdf:
         texto_busqueda += " " + texto_pdf.lower()
 
-    if any(keyword in texto_busqueda for keyword in ['tta', 'transferencia automatica', 'ats']):
+    # Check from 'caracteristicas_especiales' if available from AI extraction
+    special_features = info.get('caracteristicas_especiales', [])
+    if any('tta' in feature.lower() for feature in special_features):
         caracteristicas['tiene_tta'] = True
-
-    if any(keyword in texto_busqueda for keyword in ['cabinado', 'insonorizado', 'soundproof', 'silent']):
+    if any('cabinado' in feature.lower() or 'insonorizado' in feature.lower() for feature in special_features):
         caracteristicas['tiene_cabina'] = True
-
-    if 'inverter' in texto_busqueda:
+    if any('inverter' in feature.lower() for feature in special_features):
         caracteristicas['es_inverter'] = True
 
-    if any(keyword in texto_busqueda for keyword in ['gas', 'glp', 'gnc']):
+    # Fallback to text search if not in special features
+    if not caracteristicas['tiene_tta'] and any(keyword in texto_busqueda for keyword in ['tta', 'transferencia automatica', 'ats']):
+        caracteristicas['tiene_tta'] = True
+    if not caracteristicas['tiene_cabina'] and any(keyword in texto_busqueda for keyword in ['cabinado', 'insonorizado', 'soundproof', 'silent']):
+        caracteristicas['tiene_cabina'] = True
+    if not caracteristicas['es_inverter'] and 'inverter' in texto_busqueda:
+        caracteristicas['es_inverter'] = True
+
+    # Determine fuel type
+    if info.get('combustible'):
+        fuel = info.get('combustible').lower()
+        if 'gas' in fuel:
+            caracteristicas['tipo_combustible'] = 'gas'
+        elif 'nafta' in fuel:
+            caracteristicas['tipo_combustible'] = 'nafta'
+    elif any(keyword in texto_busqueda for keyword in ['gas', 'glp', 'gnc']):
         caracteristicas['tipo_combustible'] = 'gas'
     elif 'nafta' in texto_busqueda:
         caracteristicas['tipo_combustible'] = 'nafta'
@@ -154,227 +142,119 @@ def validar_caracteristicas_producto(info, texto_pdf):
     return caracteristicas
 
 # ============================================================================
-# NUEVA VERSIÓN MEJORADA DE GENERACIÓN DE DESCRIPCIONES PREMIUM
+# FUNCIONES DE GENERACIÓN DE HTML (ACTUALIZADAS)
 # ============================================================================
 
-def generar_descripcion_detallada_html_premium(row, config, modelo_ia=None):
-    """
-    Genera descripción HTML premium con diseño visual mejorado y responsivo
-    Versión 2.1 - Corregido el error de KeyError y mejorada la extracción de datos.
-    """
-    info_inicial = extraer_info_tecnica(row)
+def generar_hero_section(info, caracteristicas):
+    """Genera la sección hero dinámica."""
+    marca = info.get('marca', '')
+    modelo = info.get('modelo', '')
     
-    pdf_url = info_inicial.get('pdf_url', '')
-    texto_pdf = None
-    if pdf_url and pdf_url not in ['nan', 'None', '']:
-        if not pdf_url.startswith('http'):
-            pdf_url = f"https://storage.googleapis.com/fichas_tecnicas/{pdf_url}"
-        texto_pdf = extraer_texto_pdf(pdf_url, print)
+    titulo = f"{marca} {modelo}".strip()
+    if not titulo:
+        titulo = info.get('nombre', 'Generador de Energía')
 
-    info = info_inicial
-    if texto_pdf:
-        print("🤖 Iniciando extracción de datos con IA...")
-        if modelo_ia:
-            try:
-                prompt_template_path = Path(__file__).parent / "templates" / "detailed_product_prompt.json"
-                with open(prompt_template_path, 'r', encoding='utf-8') as f:
-                    prompt_templates = json.load(f)
+    tags = []
+    if caracteristicas.get('tipo_combustible') == 'gas':
+        tags.append("A GAS")
+    if caracteristicas.get('tiene_tta'):
+        tags.append("CON TTA")
+    if caracteristicas.get('es_inverter'):
+        tags.append("INVERTER")
 
-                prompt_template = prompt_templates['prompt_extract']
-                
-                prompt_extraccion = prompt_template.replace('{pdf_text}', texto_pdf[:4000])
-                prompt_extraccion = prompt_extraccion.replace('{familia}', info_inicial['familia'])
-                prompt_extraccion = prompt_extraccion.replace('{nombre}', info_inicial['nombre'])
-                prompt_extraccion = prompt_extraccion.replace('{modelo}', info_inicial['modelo'])
-                prompt_extraccion = prompt_extraccion.replace('{marca}', info_inicial['marca'])
+    subtitulo = " | ".join(tags) if tags else "Solución energética profesional de última generación"
 
-                response = modelo_ia.generate_content(prompt_extraccion)
-                
-                # Limpiar y parsear la respuesta JSON de la IA
-                cleaned_response = response.text.strip().replace('```json', '').replace('```', '').strip()
-                extracted_data = json.loads(cleaned_response)
-                
-                # Actualizar 'info' con los datos extraídos por la IA
-                info.update(extracted_data.get('especificaciones', {}))
-                print("✅ Datos extraídos con IA correctamente.")
-
-            except Exception as e:
-                print(f"⚠️ Error en extracción con IA, usando Regex como fallback: {e}")
-                info = extraer_datos_tecnicos_del_pdf(texto_pdf, info_inicial, print)
-        else:
-            info = extraer_datos_tecnicos_del_pdf(texto_pdf, info_inicial, print)
-
-    caracteristicas = validar_caracteristicas_producto(info, texto_pdf)
-    
-    html_hero = generar_hero_section(info)
-    html_cards = generar_info_cards_section(info, caracteristicas)
-    html_specs = generar_specs_table_section(info)
-    html_badges = generar_feature_badges_section(caracteristicas)
-    html_speech = generar_speech_sections(info, caracteristicas, modelo_ia, texto_pdf)
-    html_benefits = generar_benefits_section()
-    html_cta = generar_cta_section(info, config)
-    html_contact = generar_contact_section(config)
-    
-    css_styles = generar_css_mejorado()
-    
-    html = f"""
-    <!DOCTYPE html>
-    <html lang="es">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>{info['nombre']} - Descripción Premium</title>
-        {css_styles}
-    </head>
-    <body>
-        <div class="container">
-            {html_hero}
-            {html_cards}
-            {html_specs}
-            {html_badges}
-            {html_speech}
-            {html_benefits}
-            {html_cta}
-            {html_contact}
-        </div>
-    </body>
-    </html>
-    """
-    
-    return html
-
-def generar_hero_section(info):
-    """Genera la sección hero con gradiente"""
-    nombre_producto = info['nombre']
-    subtitulo = "Solución energética profesional de última generación"
-    
-    if 'compresor' in info.get('familia', '').lower():
-        subtitulo = "Compresión de aire profesional de alta eficiencia"
-    elif 'vibro' in info.get('familia', '').lower():
-        subtitulo = "Compactación profesional de máxima potencia"
-    
     return f'''
     <div class="hero-header animate-fade-in">
-        <h1>{nombre_producto}</h1>
+        <h1>{titulo}</h1>
         <p>{subtitulo}</p>
     </div>
     '''
 
 def generar_info_cards_section(info, caracteristicas):
-    """Genera las cards de información principal"""
-    tipo_combustible = caracteristicas['tipo_combustible']
+    """Genera las tarjetas de información principal."""
+    tipo_combustible = caracteristicas.get('tipo_combustible', 'diesel')
     icono_combustible = ICONOS_SVG.get(tipo_combustible, ICONOS_SVG['diesel'])
-    
-    motor_display = info.get('motor', 'N/D')
-    motor_subtext = ""
-    if info.get('cilindrada'):
-        motor_subtext = f"{info['cilindrada']}cc"
     
     return f'''
     <div class="info-cards">
         <div class="info-card">
-            <div class="icon-wrapper">
-                {ICONOS_SVG['potencia']}
-            </div>
+            <div class="icon-wrapper">{ICONOS_SVG['potencia']}</div>
             <div class="info-content">
                 <h4>POTENCIA</h4>
-                <div class="value">{info.get('potencia_kva', 'N/D')} KVA</div>
-                {f'<div class="sub-value">{info.get("potencia_kw", "")} KW</div>' if info.get('potencia_kw') else ''}
+                <div class="value">{info.get('potencia_kva', 'N/D')}</div>
+                <div class="sub-value">{info.get('potencia_kw', '')}</div>
             </div>
         </div>
         <div class="info-card">
-            <div class="icon-wrapper">
-                {ICONOS_SVG['motor']}
-            </div>
+            <div class="icon-wrapper">{ICONOS_SVG['motor']}</div>
             <div class="info-content">
                 <h4>MOTOR</h4>
-                <div class="value" style="font-size: 20px;">{motor_display}</div>
-                {f'<div class="sub-value">{motor_subtext}</div>' if motor_subtext else ''}
+                <div class="value" style="font-size: 20px;">{info.get('marca_motor', '')} {info.get('modelo_motor', info.get('motor', 'N/D'))}</div>
+                <div class="sub-value">{info.get('cilindrada_cc', '')} cc</div>
             </div>
         </div>
         <div class="info-card">
-            <div class="icon-wrapper">
-                {icono_combustible}
-            </div>
+            <div class="icon-wrapper">{icono_combustible}</div>
             <div class="info-content">
                 <h4>COMBUSTIBLE</h4>
                 <div class="value" style="font-size: 20px;">{tipo_combustible.upper()}</div>
-                <div class="sub-value">{info.get('consumo', 'N/D')} L/h</div>
+                <div class="sub-value">{info.get('consumo_combustible_75', 'N/D')} L/h al 75%</div>
             </div>
         </div>
     </div>
     '''
 
 def generar_specs_table_section(info):
-    """Genera la tabla de especificaciones técnicas"""
-    specs = []
-    
-    if info.get('potencia_kva'):
-        specs.append(('POTENCIA STANDBY', f"{info['potencia_kva']} KVA{f' / {info.get('potencia_kw', '')} KW' if info.get('potencia_kw') else ''}", 'potencia'))
-    if info.get('voltaje'):
-        specs.append(('VOLTAJE', f"{info['voltaje']} V", 'voltaje'))
-    if info.get('frecuencia'):
-        specs.append(('FRECUENCIA', f"{info['frecuencia']} Hz", 'frecuencia'))
-    if info.get('motor'):
-        specs.append(('MOTOR', info['motor'], 'motor'))
-    if info.get('alternador'):
-        specs.append(('ALTERNADOR', info['alternador'], 'motor'))
-    if info.get('cilindrada'):
-        specs.append(('CILINDRADA', f"{info['cilindrada']} cm³", 'cilindrada'))
-    if info.get('consumo'):
-        specs.append(('CONSUMO', f"{info['consumo']} L/h @ 75% carga", 'consumo'))
-    if info.get('tanque'):
-        specs.append(('CAPACIDAD TANQUE', f"{info['tanque']} L", 'consumo'))
-    if info.get('ruido'):
-        specs.append(('NIVEL SONORO', f"{info['ruido']} dBA @ 7 metros", 'ruido'))
-    
-    if all(info.get(x) for x in ['largo', 'ancho', 'alto']):
-        dims = f"{info['largo']} x {info['ancho']} x {info['alto']} mm"
-        specs.append(('DIMENSIONES', dims, 'dimensiones'))
-    
-    if info.get('peso'):
-        specs.append(('PESO', f"{info['peso']} kg", 'peso'))
+    """Genera la tabla de especificaciones técnicas."""
+    specs_map = {
+        'potencia_kva': ('Potencia KVA', 'potencia'),
+        'potencia_kw': ('Potencia KW', 'potencia'),
+        'voltaje': ('Voltaje', 'voltaje'),
+        'frecuencia': ('Frecuencia', 'frecuencia'),
+        'marca_motor': ('Marca Motor', 'motor'),
+        'modelo_motor': ('Modelo Motor', 'motor'),
+        'cilindrada_cc': ('Cilindrada (cc)', 'cilindrada'),
+        'consumo_combustible_75': ('Consumo (75%)', 'consumo'),
+        'nivel_sonoro_dba_7m': ('Nivel Sonoro (7m)', 'ruido'),
+        'dimensiones_mm': ('Dimensiones (mm)', 'dimensiones'),
+        'peso_kg': ('Peso (kg)', 'peso'),
+    }
     
     rows_html = ""
-    for i, (label, value, icon_key) in enumerate(specs):
-        icono = ICONOS_SVG.get(icon_key, '')
+    for key, (label, icon_key) in specs_map.items():
+        value = info.get(key)
+        if value:
+            rows_html += f'''
+            <tr>
+                <td class="spec-label">{ICONOS_SVG.get(icon_key, '')} {label}</td>
+                <td class="spec-value">{value}</td>
+            </tr>
+            '''
+    
+    # Add additional specs from AI
+    for spec in info.get('specs_adicionales', []):
         rows_html += f'''
         <tr>
-            <td class="spec-label">
-                {icono}
-                {label}
-            </td>
-            <td class="spec-value">{value}</td>
+            <td class="spec-label">{ICONOS_SVG.get('specs', '')} {spec.get('label', '')}</td>
+            <td class="spec-value">{spec.get('value', '')}</td>
         </tr>
         '''
-    
-    if not rows_html:
-        return ""
-    
+        
     return f'''
     <div class="specs-section">
-        <div class="specs-header">
-            {ICONOS_SVG['specs']}
-            <h2>ESPECIFICACIONES TÉCNICAS COMPLETAS</h2>
-        </div>
+        <div class="specs-header">{ICONOS_SVG['specs']} <h2>ESPECIFICACIONES TÉCNICAS COMPLETAS</h2></div>
         <div class="specs-table">
             <table>
-                <thead>
-                    <tr>
-                        <th style="width: 40%;">CARACTERÍSTICA</th>
-                        <th>ESPECIFICACIÓN</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {rows_html}
-                </tbody>
+                <thead><tr><th style="width: 40%;">CARACTERÍSTICA</th><th>ESPECIFICACIÓN</th></tr></thead>
+                <tbody>{rows_html}</tbody>
             </table>
         </div>
     </div>
     '''
 
 def generar_feature_badges_section(caracteristicas):
-    """Genera los badges de características especiales"""
+    """Genera los badges de características especiales."""
     badges_html = ""
     
     if caracteristicas.get('tiene_tta'):
@@ -403,89 +283,54 @@ def generar_feature_badges_section(caracteristicas):
     
     return f'<div class="feature-badges">{badges_html}</div>' if badges_html else ''
 
-def generar_speech_sections(info, caracteristicas, modelo_ia, texto_pdf):
-    """Genera las secciones de speech de ventas usando IA si está disponible."""
-    default_content = {
-        'potencia': f"Con una capacidad de {info.get('potencia_kva', 'N/D')} KVA, este equipo está diseñado para superar las expectativas más exigentes. Su motor {info.get('motor', 'N/D')} garantiza un funcionamiento óptimo en cualquier condición de trabajo.",
-        'money': f"Con un consumo de {info.get('consumo', 'N/D')} litros por hora y un tanque de {info.get('tanque', 'N/D')} litros, obtendrá horas de operación continua sin interrupciones. Esto se traduce en ahorro real y menor frecuencia de reabastecimiento.",
-        'shield': f"{'El alternador ' + info.get('alternador', '') + ' asegura una entrega de energía estable y constante. ' if info.get('alternador') else ''}{'La cabina insonorizada reduce drásticamente el ruido. ' if caracteristicas.get('tiene_cabina') else ''}Construido para durar con los más altos estándares de calidad."
-    }
+def generar_speech_sections(info, marketing_content):
+    """Genera las secciones de speech de ventas usando contenido de IA."""
+    
+    # Usar contenido de IA si está disponible, de lo contrario, un mensaje genérico.
+    titulo_h1 = marketing_content.get('titulo_h1', info.get('nombre', ''))
+    subtitulo_p = marketing_content.get('subtitulo_p', 'Una solución robusta y confiable para sus necesidades energéticas.')
+    puntos_clave_li = marketing_content.get('puntos_clave_li', [])
+    descripcion_detallada_p = marketing_content.get('descripcion_detallada_p', [])
+    aplicaciones_ideales_li = marketing_content.get('aplicaciones_ideales_li', [])
 
-    if modelo_ia and texto_pdf:
-        try:
-            prompt = f"""
-            Basado en el siguiente texto de un PDF de un producto, genera 3 párrafos de venta cortos y persuasivos.
-            El texto debe ser profesional y enfocado en beneficios.
+    # Sección de Puntos Clave
+    puntos_clave_html = ""
+    if puntos_clave_li:
+        puntos_clave_html = "<ul>" + "".join(f"<li>{item}</li>" for item in puntos_clave_li) + "</ul>"
+    
+    # Sección de Descripción Detallada
+    descripcion_html = "".join(f"<p>{p}</p>" for p in descripcion_detallada_p)
 
-            Texto del PDF:
-            ---
-            {texto_pdf[:2000]}
-            ---
-
-            Información clave del producto:
-            - Nombre: {info['nombre']}
-            - Potencia: {info['potencia_kva']} KVA
-            - Motor: {info['motor']}
-
-            Genera 3 párrafos separados por '|||' para los siguientes temas:
-            1.  **Potencia y Rendimiento Superior**: Destaca la capacidad y el motor.
-            2.  **Economía Operativa**: Habla del consumo y la autonomía.
-            3.  **Confiabilidad y Construcción**: Menciona la calidad, el alternador y la cabina si aplica.
-            
-            IMPORTANTE: Responde solo con los 3 párrafos separados por '|||'. No agregues títulos ni numeración.
-            """
-            
-            response = modelo_ia.generate_content(prompt)
-            if response and response.text:
-                partes = response.text.split('|||')
-                if len(partes) == 3:
-                    default_content['potencia'] = partes[0].strip()
-                    default_content['money'] = partes[1].strip()
-                    default_content['shield'] = partes[2].strip()
-                    print("✅ Contenido de speech generado por IA.")
-        except Exception as e:
-            print(f"⚠️ Error generando speech con IA, se usará contenido por defecto: {e}")
+    # Sección de Aplicaciones
+    aplicaciones_html = ""
+    if aplicaciones_ideales_li:
+        aplicaciones_html = "<ul>" + "".join(f"<li>{item}</li>" for item in aplicaciones_ideales_li) + "</ul>"
 
     sections = [
-        {'icon': 'potencia', 'title': 'POTENCIA Y RENDIMIENTO SUPERIOR', 'content': default_content['potencia']},
-        {'icon': 'money', 'title': 'ECONOMÍA OPERATIVA GARANTIZADA', 'content': default_content['money']},
-        {'icon': 'shield', 'title': 'CONFIABILIDAD COMPROBADA', 'content': default_content['shield']},
-        {
-            'icon': 'tools', 'title': 'APLICACIONES IDEALES',
-            'content': '''
-            <ul>
-                <li>Industrias y fábricas que requieren energía constante</li>
-                <li>Comercios y centros de atención al público</li>
-                <li>Hospitales y centros de salud</li>
-                <li>Eventos y espectáculos al aire libre</li>
-                <li>Respaldo para sistemas críticos</li>
-            </ul>
-            '''
-        },
-        {
-            'icon': 'tools', 'title': 'POR QUÉ ELEGIR ESTE EQUIPO',
-            'content': "No es solo un generador, es su socio en continuidad operativa. Con respaldo de marca reconocida, servicio técnico especializado y disponibilidad inmediata de repuestos, su inversión está protegida."
-        }
+        {'icon': 'potencia', 'title': 'PUNTOS CLAVE', 'content': puntos_clave_html},
+        {'icon': 'shield', 'title': 'DESCRIPCIÓN DETALLADA', 'content': descripcion_html},
+        {'icon': 'tools', 'title': 'APLICACIONES IDEALES', 'content': aplicaciones_html}
     ]
     
     html = ""
     for section in sections:
-        html += f'''
-        <div class="speech-section">
-            <div class="speech-header">
-                <div class="speech-icon">
-                    {ICONOS_SVG.get(section['icon'], '')}
+        if section['content']:
+            html += f'''
+            <div class="speech-section">
+                <div class="speech-header">
+                    <div class="speech-icon">
+                        {ICONOS_SVG.get(section['icon'], '')}
+                    </div>
+                    <h3>{section['title']}</h3>
                 </div>
-                <h3>{section['title']}</h3>
+                {section['content']}
             </div>
-            {'<p>' + section['content'] + '</p>' if '<ul>' not in section['content'] else section['content']}
-        </div>
-        '''
+            '''
     
     return html
 
 def generar_benefits_section():
-    """Genera la sección de beneficios"""
+    """Genera la sección de beneficios."""
     benefits = [
         {'icon': 'shield', 'title': 'GARANTÍA OFICIAL', 'desc': 'Respaldo total del fabricante con garantía extendida'},
         {'icon': 'quality', 'title': 'CALIDAD CERTIFICADA', 'desc': 'Cumple con todas las normas internacionales'},
@@ -508,7 +353,7 @@ def generar_benefits_section():
     return f'''
     <div class="benefits-section">
         <div class="benefits-header">
-            <h3>POR QUÉ ELEGIR ESTE GENERADOR</h3>
+            <h3>POR QUÉ ELEGIRNOS</h3>
         </div>
         <div class="benefits-grid">
             {cards_html}
@@ -517,8 +362,8 @@ def generar_benefits_section():
     '''
 
 def generar_cta_section(info, config):
-    """Genera la sección de Call-to-Action"""
-    nombre_producto = info['nombre']
+    """Genera la sección de Call-to-Action."""
+    nombre_producto = info.get('nombre', 'este producto')
     whatsapp = config.get('whatsapp', '541139563099')
     email = config.get('email', 'info@generadores.ar')
     pdf_url = info.get('pdf_url', '#')
@@ -526,14 +371,14 @@ def generar_cta_section(info, config):
     if pdf_url and not pdf_url.startswith('http'):
         pdf_url = f"https://storage.googleapis.com/fichas_tecnicas/{pdf_url}"
     
-    whatsapp_msg = f"Hola,%20vengo%20de%20ver%20el%20{nombre_producto.replace(' ', '%20')}%20en%20la%20tienda%20de%20Stelorder%20y%20quisiera%20mas%20informacion"
-    email_subject = f"Consulta%20desde%20Stelorder%20-%20{nombre_producto.replace(' ', '%20')}"
-    email_body = f"Hola,%0A%0AVengo%20de%20ver%20el%20{nombre_producto.replace(' ', '%20')}%20en%20la%20tienda%20de%20Stelorder.%0A%0AQuedo%20a%20la%20espera%20de%20su%20respuesta.%0A%0ASaludos"
+    whatsapp_msg = f"Hola,%20vengo%20de%20ver%20el%20{nombre_producto.replace(' ', '%20')}%20en%20la%20tienda%20y%20quisiera%20mas%20informacion"
+    email_subject = f"Consulta%20-%20{nombre_producto.replace(' ', '%20')}"
+    email_body = f"Hola,%0A%0AQuisiera%20solicitar%20una%20cotización%20para%20el%20producto:%20{nombre_producto.replace(' ', '%20')}.%0A%0AGracias."
     
     return f'''
     <div class="cta-section">
-        <h3>TOME ACCIÓN AHORA</h3>
-        <p>No pierda esta oportunidad. Consulte con nuestros especialistas hoy mismo.</p>
+        <h3>¿LISTO PARA POTENCIAR TU OPERACIÓN?</h3>
+        <p>No espere más. Contacte a nuestros especialistas y asegure su energía hoy mismo.</p>
         
         <div class="cta-buttons">
             <a href="https://wa.me/{whatsapp}?text={whatsapp_msg}" target="_blank" class="cta-button whatsapp">
@@ -553,7 +398,7 @@ def generar_cta_section(info, config):
     '''
 
 def generar_contact_section(config):
-    """Genera la sección de contacto"""
+    """Genera la sección de contacto."""
     return f'''
     <div class="contact-footer">
         <h4>CONTACTO DIRECTO</h4>
@@ -584,7 +429,7 @@ def generar_contact_section(config):
     '''
 
 def generar_css_mejorado():
-    """Genera los estilos CSS mejorados y responsivos"""
+    """Genera los estilos CSS basados en tu plantilla."""
     return '''
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -629,7 +474,7 @@ def generar_css_mejorado():
         .speech-icon { width: 50px; height: 50px; background: linear-gradient(135deg, #ffe8cc 0%, #ffd4a3 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .speech-section h3 { color: #D32F2F; font-size: 22px; font-weight: 700; text-transform: uppercase; flex: 1; }
         .speech-section p { font-size: 16px; line-height: 1.8; color: #555; }
-        .speech-section ul { list-style: none; padding: 0; }
+        .speech-section ul { list-style: none; padding: 0; margin-top: 10px; }
         .speech-section li { padding: 8px 0; padding-left: 30px; position: relative; color: #555; }
         .speech-section li::before { content: '✓'; position: absolute; left: 0; color: #4caf50; font-weight: bold; font-size: 18px; }
         .benefits-section { margin: 50px 0; }
@@ -687,139 +532,94 @@ def generar_css_mejorado():
         .animate-fade-in { animation: fadeInUp 0.6s ease-out; }
     </style>
     '''
-=======
-"""
-Módulo de Generación Premium con IA para STEL Shop
-"""
 
-import json
-from typing import Dict, Any, Optional
-import google.generativeai as genai
-from pathlib import Path
-
-class PremiumGenerator:
+def generar_descripcion_detallada_html_premium(row, config, modelo_ia=None, print_callback=print):
     """
-    Generador de contenido premium que utiliza IA para categorizar productos,
-    extraer datos de PDFs y generar descripciones detalladas y específicas.
+    Función principal que orquesta la generación de la descripción HTML premium.
+    """
+    # 1. Extraer y procesar datos del producto
+    info_inicial = extraer_info_tecnica(row)
+    info = info_inicial.copy() # Usar datos base como fallback
+    
+    pdf_url = info_inicial.get('pdf_url', '')
+    texto_pdf = None
+    if pdf_url and str(pdf_url).lower() not in ['nan', 'none', '']:
+        if not pdf_url.startswith('http'):
+            pdf_url = f"https://storage.googleapis.com/fichas_tecnicas/{pdf_url}"
+        texto_pdf = extraer_texto_pdf(pdf_url, print_callback)
+
+    marketing_content = {}
+    # 2. Enriquecer datos con IA si es posible
+    if texto_pdf and modelo_ia:
+        print("🤖 Iniciando extracción y generación de contenido con IA...")
+        try:
+            # Cargar prompts
+            prompt_path = Path(__file__).parent / 'templates' / 'detailed_product_prompt.json'
+            with open(prompt_path, 'r', encoding='utf-8') as f:
+                prompts = json.load(f)
+
+            # Fase 1: Extracción de datos
+            prompt_extract = prompts['prompt_extract'].format(
+                pdf_text=texto_pdf[:4000], # Limitar para no exceder tokens
+                nombre=info.get('nombre'),
+                familia=info.get('familia'),
+                modelo=info.get('modelo'),
+                marca=info.get('marca')
+            )
+            response_extract = modelo_ia.generate_content(prompt_extract)
+            
+            # Limpiar y parsear la respuesta JSON de la IA
+            json_text = response_extract.text.strip().replace('```json', '').replace('```', '').strip()
+            extracted_data = json.loads(json_text)
+            info.update(extracted_data)
+            print("✅ Datos extraídos con IA.")
+
+            # Fase 2: Generación de contenido de marketing
+            prompt_generate = prompts['prompt_generate'].format(product_data_json=json.dumps(info, indent=2))
+            response_generate = modelo_ia.generate_content(prompt_generate)
+            json_text_marketing = response_generate.text.strip().replace('```json', '').replace('```', '').strip()
+            marketing_content = json.loads(json_text_marketing)
+            print("✅ Contenido de marketing generado por IA.")
+
+        except Exception as e:
+            print(f"⚠️ Error en el proceso con IA, se usarán datos básicos y contenido por defecto: {e}")
+            
+    caracteristicas = validar_caracteristicas_producto(info, texto_pdf)
+    
+    # 3. Generar cada sección del HTML
+    html_hero = generar_hero_section(info, caracteristicas)
+    html_cards = generar_info_cards_section(info, caracteristicas)
+    html_specs = generar_specs_table_section(info)
+    html_badges = generar_feature_badges_section(caracteristicas)
+    html_speech = generar_speech_sections(info, marketing_content)
+    html_benefits = generar_benefits_section()
+    html_cta = generar_cta_section(info, config)
+    html_contact = generar_contact_section(config)
+    
+    # 4. Ensamblar el HTML final
+    css_styles = generar_css_mejorado()
+    html_completo = f"""
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{info.get('nombre')} - Descripción Premium</title>
+        {css_styles}
+    </head>
+    <body>
+        <div class="container">
+            {html_hero}
+            {html_cards}
+            {html_badges}
+            {html_specs}
+            {html_speech}
+            {html_benefits}
+            {html_cta}
+            {html_contact}
+        </div>
+    </body>
+    </html>
     """
     
-    def __init__(self, api_key: str):
-        self.model = self._initialize_model(api_key)
-        self.module_path = Path(__file__).parent
-        self.product_templates = self._load_product_templates()
-
-    def _initialize_model(self, api_key: str) -> Optional[genai.GenerativeModel]:
-        """Inicializa y valida el modelo de Google Gemini."""
-        try:
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            # Realizar una prueba simple para validar el modelo
-            model.generate_content("test", generation_config={"max_output_tokens": 5})
-            print("✅ Modelo de IA (Premium Generator) inicializado correctamente.")
-            return model
-        except Exception as e:
-            print(f"❌ Error inicializando el modelo en PremiumGenerator: {e}")
-            return None
-
-    def _load_product_templates(self) -> Dict:
-        """Carga las plantillas de prompts desde un archivo JSON."""
-        template_path = self.module_path / "templates" / "product_templates.json"
-        if template_path.exists():
-            with open(template_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        return {}
-
-    def generate_content(self, product_info: Dict[str, Any], pdf_text: str) -> Dict[str, Any]:
-        """
-        Orquesta el proceso completo de generación de contenido.
-        1. Determina la categoría del producto.
-        2. Extrae las especificaciones técnicas del PDF.
-        3. Genera la descripción de venta.
-        """
-        if not self.model:
-            raise Exception("El modelo de IA no está inicializado.")
-
-        # 1. Determinar la categoría del producto
-        category = self._determine_product_category(product_info, pdf_text)
-        
-        # 2. Extraer especificaciones técnicas del PDF
-        tech_specs = self._extract_tech_specs_from_pdf(product_info, pdf_text, category)
-        
-        # 3. Generar descripción de venta
-        sales_description = self._generate_sales_description(product_info, tech_specs, category)
-        
-        return {
-            "category": category,
-            "technical_specifications": tech_specs,
-            "sales_description": sales_description
-        }
-
-    def _determine_product_category(self, product_info: Dict[str, Any], pdf_text: str) -> str:
-        """Determina la categoría del producto usando IA."""
-        prompt = f"""
-        Analiza la siguiente información de un producto y determina su categoría.
-        
-        Información del producto:
-        - Nombre: {product_info.get('nombre', '')}
-        - Familia: {product_info.get('familia', '')}
-        - Modelo: {product_info.get('modelo', '')}
-        
-        Texto del PDF (extracto):
-        {pdf_text[:1500]}
-
-        Categorías posibles: {', '.join(self.product_templates.keys())}.
-        Si no encaja en ninguna, responde 'generico'.
-        
-        Responde únicamente con el nombre de la categoría en minúsculas (ej: 'grupo_electrogeno').
-        """
-        response = self.model.generate_content(prompt)
-        return response.text.strip()
-
-    def _extract_tech_specs_from_pdf(self, product_info: Dict[str, Any], pdf_text: str, category: str) -> Dict[str, Any]:
-        """Extrae las especificaciones técnicas del PDF usando IA."""
-        template = self.product_templates.get(category, self.product_templates.get('generico', {}))
-        extraction_prompt = template.get('extraction_prompt')
-        
-        if not extraction_prompt:
-            return {"error": "No se encontró un prompt de extracción para esta categoría."}
-            
-        prompt = f"""
-        {extraction_prompt}
-        
-        Texto del PDF para analizar:
-        ---
-        {pdf_text}
-        ---
-        
-        Información adicional del producto (para contexto):
-        - Nombre: {product_info.get('nombre', '')}
-        - Modelo: {product_info.get('modelo', '')}
-        
-        Analiza el texto y devuelve un JSON con los datos. Si un dato no se encuentra, déjalo como null.
-        """
-        
-        response = self.model.generate_content(prompt)
-        
-        try:
-            # Limpiar la respuesta para que sea un JSON válido
-            json_text = response.text.strip().replace('```json', '').replace('```', '')
-            return json.loads(json_text)
-        except json.JSONDecodeError:
-            return {"error": "La IA no devolvió un JSON válido.", "raw_response": response.text}
-
-    def _generate_sales_description(self, product_info: Dict[str, Any], tech_specs: Dict[str, Any], category: str) -> str:
-        """Genera la descripción de venta final."""
-        template = self.product_templates.get(category, self.product_templates.get('generico', {}))
-        description_prompt_template = template.get('description_prompt')
-        
-        if not description_prompt_template:
-            return "No se pudo generar la descripción para esta categoría."
-            
-        # Combinar toda la información para el prompt
-        full_context = {**product_info, **tech_specs}
-        
-        prompt = description_prompt_template.format(**full_context)
-        
-        response = self.model.generate_content(prompt)
-        return response.text.strip()
->>>>>>> cbaf033 (feat: Implementa generador de contenido premium con IA)
+    return html_completo

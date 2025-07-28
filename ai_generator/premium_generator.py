@@ -4,9 +4,9 @@ Módulo para la generación de descripciones HTML premium de productos.
 """
 import re
 import requests
+import PyPDF2
+import io
 import fitz  # PyMuPDF
-import json
-from pathlib import Path
 
 # ============================================================================
 # ICONOS SVG PARA EL DISEÑO PREMIUM
@@ -43,26 +43,28 @@ ICONOS_SVG = {
 
 def extraer_info_tecnica(row):
     """Extrae y normaliza la información técnica de una fila de datos de la BD."""
+    # Mapeo de columnas SQL a claves del diccionario 'info'
     info = {
         'nombre': row.get('Descripción', 'Producto sin nombre'),
         'marca': row.get('Marca', 'N/D'),
         'modelo': row.get('Modelo', 'N/D'),
         'familia': row.get('Familia', ''),
         'potencia_kva': row.get('Potencia', 'N/D'),
-        'potencia_kw': '',
+        'potencia_kw': '', # Se buscará en el PDF
         'voltaje': row.get('Tensión', 'N/D'),
-        'frecuencia': '50',
+        'frecuencia': '50', # Valor por defecto, se puede buscar en PDF
         'motor': row.get('Motor', 'N/D'),
-        'alternador': 'N/D',
-        'cilindrada': '',
-        'consumo': 'N/D',
-        'tanque': 'N/D',
-        'ruido': 'N/D',
-        'largo': '', 'ancho': '', 'alto': '',
+        'alternador': 'N/D', # Se buscará en el PDF
+        'cilindrada': '', # Se buscará en el PDF
+        'consumo': 'N/D', # Se buscará en el PDF
+        'tanque': 'N/D', # Se buscará en el PDF
+        'ruido': 'N/D', # Se buscará en el PDF
+        'largo': '', 'ancho': '', 'alto': '', # Se buscará en el PDF
         'peso': row.get('Peso_(kg)', 'N/D'),
         'pdf_url': row.get('URL_PDF', '')
     }
     
+    # Extraer dimensiones si vienen juntas
     if row.get('Dimensiones'):
         dims = str(row.get('Dimensiones')).split('x')
         if len(dims) == 3:
@@ -78,6 +80,7 @@ def extraer_texto_pdf(pdf_url, print_callback=print):
         response = requests.get(pdf_url, timeout=10)
         response.raise_for_status()
         
+        # Usar PyMuPDF (fitz) que es más robusto
         with fitz.open(stream=response.content, filetype="pdf") as doc:
             texto_completo = ""
             for page in doc:
@@ -101,6 +104,7 @@ def extraer_datos_tecnicos_del_pdf(texto_pdf, info_actual, print_callback=print)
     """Intenta extraer y actualizar datos técnicos desde el texto de un PDF con regex mejoradas."""
     info_actualizada = info_actual.copy()
     
+    # Patrones de regex mejorados para ser más flexibles
     patrones = {
         'potencia_kva': r'(\d{1,4}[\.,]?\d{1,2})\s*kVA',
         'potencia_kw': r'(\d{1,4}[\.,]?\d{1,2})\s*kW',
@@ -118,6 +122,7 @@ def extraer_datos_tecnicos_del_pdf(texto_pdf, info_actual, print_callback=print)
         match = re.search(patron, texto_pdf, re.IGNORECASE | re.DOTALL)
         if match:
             valor_extraido = match.group(1).strip()
+            # Siempre se da prioridad al dato del PDF
             info_actualizada[campo] = valor_extraido
             print_callback(f"  -> Dato extraído de PDF: {campo} = {valor_extraido}")
             
@@ -129,22 +134,27 @@ def validar_caracteristicas_producto(info, texto_pdf):
         'tiene_tta': False,
         'tiene_cabina': False,
         'es_inverter': False,
-        'tipo_combustible': 'diesel'
+        'tipo_combustible': 'diesel' # Por defecto
     }
     
+    # Combinar toda la información de texto disponible
     texto_busqueda = f"{info.get('nombre', '')} {info.get('familia', '')}".lower()
     if texto_pdf:
         texto_busqueda += " " + texto_pdf.lower()
 
+    # Detección de TTA (Transferencia Automática)
     if any(keyword in texto_busqueda for keyword in ['tta', 'transferencia automatica', 'ats']):
         caracteristicas['tiene_tta'] = True
 
-    if any(keyword in texto_busqueda for keyword in ['cabinado', 'insonorizado', 'soundproof', 'silent']):
+    # Detección de cabina insonorizada
+    if any(keyword in texto_busqueda for keyword in ['cabinado', 'insonorizado', 'soundproof']):
         caracteristicas['tiene_cabina'] = True
 
+    # Detección de tecnología Inverter
     if 'inverter' in texto_busqueda:
         caracteristicas['es_inverter'] = True
 
+    # Detección de tipo de combustible
     if any(keyword in texto_busqueda for keyword in ['gas', 'glp', 'gnc']):
         caracteristicas['tipo_combustible'] = 'gas'
     elif 'nafta' in texto_busqueda:
@@ -159,63 +169,43 @@ def validar_caracteristicas_producto(info, texto_pdf):
 def generar_descripcion_detallada_html_premium(row, config, modelo_ia=None):
     """
     Genera descripción HTML premium con diseño visual mejorado y responsivo
-    Versión 2.1 - Corregido el error de KeyError y mejorada la extracción de datos.
+    Versión 2.0 - Optimizada con iconos SVG y mejor estructura
     """
-    info_inicial = extraer_info_tecnica(row)
+    info = extraer_info_tecnica(row)
     
-    pdf_url = info_inicial.get('pdf_url', '')
+    # Configuración de contacto
+    whatsapp = config.get('whatsapp', '541139563099')
+    email = config.get('email', 'info@generadores.ar')
+    telefono_display = config.get('telefono_display', '+54 11 3956-3099')
+    website = config.get('website', 'www.generadores.ar')
+    
+    # Leer PDF y actualizar info técnica
+    pdf_url = info.get('pdf_url', '')
     texto_pdf = None
     if pdf_url and pdf_url not in ['nan', 'None', '']:
         if not pdf_url.startswith('http'):
             pdf_url = f"https://storage.googleapis.com/fichas_tecnicas/{pdf_url}"
         texto_pdf = extraer_texto_pdf(pdf_url, print)
-
-    info = info_inicial
-    if texto_pdf:
-        print("🤖 Iniciando extracción de datos con IA...")
-        if modelo_ia:
-            try:
-                prompt_template_path = Path(__file__).parent / "templates" / "detailed_product_prompt.json"
-                with open(prompt_template_path, 'r', encoding='utf-8') as f:
-                    prompt_templates = json.load(f)
-
-                prompt_template = prompt_templates['prompt_extract']
-                
-                prompt_extraccion = prompt_template.replace('{pdf_text}', texto_pdf[:4000])
-                prompt_extraccion = prompt_extraccion.replace('{familia}', info_inicial['familia'])
-                prompt_extraccion = prompt_extraccion.replace('{nombre}', info_inicial['nombre'])
-                prompt_extraccion = prompt_extraccion.replace('{modelo}', info_inicial['modelo'])
-                prompt_extraccion = prompt_extraccion.replace('{marca}', info_inicial['marca'])
-
-                response = modelo_ia.generate_content(prompt_extraccion)
-                
-                # Limpiar y parsear la respuesta JSON de la IA
-                cleaned_response = response.text.strip().replace('```json', '').replace('```', '').strip()
-                extracted_data = json.loads(cleaned_response)
-                
-                # Actualizar 'info' con los datos extraídos por la IA
-                info.update(extracted_data.get('especificaciones', {}))
-                print("✅ Datos extraídos con IA correctamente.")
-
-            except Exception as e:
-                print(f"⚠️ Error en extracción con IA, usando Regex como fallback: {e}")
-                info = extraer_datos_tecnicos_del_pdf(texto_pdf, info_inicial, print)
-        else:
-            info = extraer_datos_tecnicos_del_pdf(texto_pdf, info_inicial, print)
-
+        if texto_pdf:
+            info = extraer_datos_tecnicos_del_pdf(texto_pdf, info, print)
+    
+    # Detectar características
     caracteristicas = validar_caracteristicas_producto(info, texto_pdf)
     
+    # Generar componentes HTML
     html_hero = generar_hero_section(info)
     html_cards = generar_info_cards_section(info, caracteristicas)
-    html_specs = generar_specs_table_section(info)
+    html_specs = generar_specs_table_section(info, caracteristicas)
     html_badges = generar_feature_badges_section(caracteristicas)
     html_speech = generar_speech_sections(info, caracteristicas, modelo_ia, texto_pdf)
     html_benefits = generar_benefits_section()
     html_cta = generar_cta_section(info, config)
     html_contact = generar_contact_section(config)
     
+    # CSS mejorado
     css_styles = generar_css_mejorado()
     
+    # Ensamblar HTML completo
     html = f"""
     <!DOCTYPE html>
     <html lang="es">
@@ -247,6 +237,7 @@ def generar_hero_section(info):
     nombre_producto = info['nombre']
     subtitulo = "Solución energética profesional de última generación"
     
+    # Personalizar subtítulo según tipo de producto
     if 'compresor' in info.get('familia', '').lower():
         subtitulo = "Compresión de aire profesional de alta eficiencia"
     elif 'vibro' in info.get('familia', '').lower():
@@ -263,7 +254,9 @@ def generar_info_cards_section(info, caracteristicas):
     """Genera las cards de información principal"""
     tipo_combustible = caracteristicas['tipo_combustible']
     icono_combustible = ICONOS_SVG.get(tipo_combustible, ICONOS_SVG['diesel'])
+    unidad_consumo = 'm³/h' if tipo_combustible == 'gas' else 'L/h'
     
+    # Determinar valores de motor
     motor_display = info.get('motor', 'N/D')
     motor_subtext = ""
     if info.get('cilindrada'):
@@ -271,6 +264,7 @@ def generar_info_cards_section(info, caracteristicas):
     
     return f'''
     <div class="info-cards">
+        <!-- Card Potencia -->
         <div class="info-card">
             <div class="icon-wrapper">
                 {ICONOS_SVG['potencia']}
@@ -281,6 +275,8 @@ def generar_info_cards_section(info, caracteristicas):
                 {f'<div class="sub-value">{info.get("potencia_kw", "")} KW</div>' if info.get('potencia_kw') else ''}
             </div>
         </div>
+        
+        <!-- Card Motor -->
         <div class="info-card">
             <div class="icon-wrapper">
                 {ICONOS_SVG['motor']}
@@ -291,6 +287,8 @@ def generar_info_cards_section(info, caracteristicas):
                 {f'<div class="sub-value">{motor_subtext}</div>' if motor_subtext else ''}
             </div>
         </div>
+        
+        <!-- Card Combustible -->
         <div class="info-card">
             <div class="icon-wrapper">
                 {icono_combustible}
@@ -298,35 +296,48 @@ def generar_info_cards_section(info, caracteristicas):
             <div class="info-content">
                 <h4>COMBUSTIBLE</h4>
                 <div class="value" style="font-size: 20px;">{tipo_combustible.upper()}</div>
-                <div class="sub-value">{info.get('consumo', 'N/D')} L/h</div>
+                <div class="sub-value">{info.get('consumo', 'N/D')} {unidad_consumo}</div>
             </div>
         </div>
     </div>
     '''
 
-def generar_specs_table_section(info):
+def generar_specs_table_section(info, caracteristicas):
     """Genera la tabla de especificaciones técnicas"""
     specs = []
     
+    tipo_combustible = caracteristicas.get('tipo_combustible', 'diesel')
+    unidad_consumo = 'm³/h' if tipo_combustible == 'gas' else 'L/h'
+
+    # Especificaciones principales
     if info.get('potencia_kva'):
-        specs.append(('POTENCIA STANDBY', f"{info['potencia_kva']} KVA{f' / {info.get('potencia_kw', '')} KW' if info.get('potencia_kw') else ''}", 'potencia'))
+        specs.append(('POTENCIA STANDBY', f"{info['potencia_kva']} KVA" + (f" / {info.get('potencia_kw', '')} KW" if info.get('potencia_kw') else ""), 'potencia'))
+    
     if info.get('voltaje'):
         specs.append(('VOLTAJE', f"{info['voltaje']} V", 'voltaje'))
+    
     if info.get('frecuencia'):
         specs.append(('FRECUENCIA', f"{info['frecuencia']} Hz", 'frecuencia'))
+    
     if info.get('motor'):
         specs.append(('MOTOR', info['motor'], 'motor'))
+    
     if info.get('alternador'):
         specs.append(('ALTERNADOR', info['alternador'], 'motor'))
+    
     if info.get('cilindrada'):
         specs.append(('CILINDRADA', f"{info['cilindrada']} cm³", 'cilindrada'))
+    
     if info.get('consumo'):
-        specs.append(('CONSUMO', f"{info['consumo']} L/h @ 75% carga", 'consumo'))
-    if info.get('tanque'):
+        specs.append(('CONSUMO', f"{info['consumo']} {unidad_consumo} @ 75% carga", 'consumo'))
+    
+    if info.get('tanque') and tipo_combustible != 'gas':
         specs.append(('CAPACIDAD TANQUE', f"{info['tanque']} L", 'consumo'))
+    
     if info.get('ruido'):
         specs.append(('NIVEL SONORO', f"{info['ruido']} dBA @ 7 metros", 'ruido'))
     
+    # Dimensiones
     if all(info.get(x) for x in ['largo', 'ancho', 'alto']):
         dims = f"{info['largo']} x {info['ancho']} x {info['alto']} mm"
         specs.append(('DIMENSIONES', dims, 'dimensiones'))
@@ -334,6 +345,7 @@ def generar_specs_table_section(info):
     if info.get('peso'):
         specs.append(('PESO', f"{info['peso']} kg", 'peso'))
     
+    # Generar filas HTML
     rows_html = ""
     for i, (label, value, icon_key) in enumerate(specs):
         icono = ICONOS_SVG.get(icon_key, '')
@@ -404,6 +416,8 @@ def generar_feature_badges_section(caracteristicas):
 
 def generar_speech_sections(info, caracteristicas, modelo_ia, texto_pdf):
     """Genera las secciones de speech de ventas usando IA si está disponible."""
+    
+    # Contenido por defecto si la IA no está disponible o falla
     default_content = {
         'potencia': f"Con una capacidad de {info.get('potencia_kva', 'N/D')} KVA, este equipo está diseñado para superar las expectativas más exigentes. Su motor {info.get('motor', 'N/D')} garantiza un funcionamiento óptimo en cualquier condición de trabajo.",
         'money': f"Con un consumo de {info.get('consumo', 'N/D')} litros por hora y un tanque de {info.get('tanque', 'N/D')} litros, obtendrá horas de operación continua sin interrupciones. Esto se traduce en ahorro real y menor frecuencia de reabastecimiento.",
@@ -431,7 +445,7 @@ def generar_speech_sections(info, caracteristicas, modelo_ia, texto_pdf):
             2.  **Economía Operativa**: Habla del consumo y la autonomía.
             3.  **Confiabilidad y Construcción**: Menciona la calidad, el alternador y la cabina si aplica.
             
-            IMPORTANTE: Responde solo con los 3 párrafos separados por '|||'. No agregues títulos ni numeración.
+            IMPORTANTE: Responde solo con los 3 párrafos separados por '|||'. No agregues títulos ni numeración. No uses emojis, íconos ni ningún tipo de caracter especial. El texto debe ser plano y profesional.
             """
             
             response = modelo_ia.generate_content(prompt)
@@ -486,10 +500,26 @@ def generar_speech_sections(info, caracteristicas, modelo_ia, texto_pdf):
 def generar_benefits_section():
     """Genera la sección de beneficios"""
     benefits = [
-        {'icon': 'shield', 'title': 'GARANTÍA OFICIAL', 'desc': 'Respaldo total del fabricante con garantía extendida'},
-        {'icon': 'quality', 'title': 'CALIDAD CERTIFICADA', 'desc': 'Cumple con todas las normas internacionales'},
-        {'icon': 'tools', 'title': 'SERVICIO TÉCNICO', 'desc': 'Red nacional de servicio y repuestos originales'},
-        {'icon': 'money', 'title': 'FINANCIACIÓN', 'desc': 'Múltiples opciones de pago y financiación a medida'}
+        {
+            'icon': 'shield',
+            'title': 'GARANTÍA OFICIAL',
+            'desc': 'Respaldo total del fabricante con garantía extendida'
+        },
+        {
+            'icon': 'quality',
+            'title': 'CALIDAD CERTIFICADA',
+            'desc': 'Cumple con todas las normas internacionales'
+        },
+        {
+            'icon': 'tools',
+            'title': 'SERVICIO TÉCNICO',
+            'desc': 'Red nacional de servicio y repuestos originales'
+        },
+        {
+            'icon': 'money',
+            'title': 'FINANCIACIÓN',
+            'desc': 'Múltiples opciones de pago y financiación a medida'
+        }
     ]
     
     cards_html = ""
@@ -525,6 +555,7 @@ def generar_cta_section(info, config):
     if pdf_url and not pdf_url.startswith('http'):
         pdf_url = f"https://storage.googleapis.com/fichas_tecnicas/{pdf_url}"
     
+    # Mensajes para enlaces
     whatsapp_msg = f"Hola,%20vengo%20de%20ver%20el%20{nombre_producto.replace(' ', '%20')}%20en%20la%20tienda%20de%20Stelorder%20y%20quisiera%20mas%20informacion"
     email_subject = f"Consulta%20desde%20Stelorder%20-%20{nombre_producto.replace(' ', '%20')}"
     email_body = f"Hola,%0A%0AVengo%20de%20ver%20el%20{nombre_producto.replace(' ', '%20')}%20en%20la%20tienda%20de%20Stelorder.%0A%0AQuedo%20a%20la%20espera%20de%20su%20respuesta.%0A%0ASaludos"
@@ -535,15 +566,22 @@ def generar_cta_section(info, config):
         <p>No pierda esta oportunidad. Consulte con nuestros especialistas hoy mismo.</p>
         
         <div class="cta-buttons">
-            <a href="https://wa.me/{whatsapp}?text={whatsapp_msg}" target="_blank" class="cta-button whatsapp">
+            <a href="https://wa.me/{whatsapp}?text={whatsapp_msg}" 
+               target="_blank"
+               class="cta-button whatsapp">
                 {ICONOS_SVG['whatsapp']}
                 <span>CONSULTAR POR WHATSAPP</span>
             </a>
-            <a href="{pdf_url}" target="_blank" class="cta-button pdf">
+            
+            <a href="{pdf_url}" 
+               target="_blank"
+               class="cta-button pdf">
                 {ICONOS_SVG['pdf']}
                 <span>DESCARGAR FICHA TÉCNICA</span>
             </a>
-            <a href="mailto:{email}?subject={email_subject}&body={email_body}" class="cta-button email">
+            
+            <a href="mailto:{email}?subject={email_subject}&body={email_body}" 
+               class="cta-button email">
                 {ICONOS_SVG['email']}
                 <span>SOLICITAR COTIZACIÓN</span>
             </a>
@@ -556,23 +594,32 @@ def generar_contact_section(config):
     return f'''
     <div class="contact-footer">
         <h4>CONTACTO DIRECTO</h4>
+        
         <div class="contact-grid">
             <div class="contact-item">
-                <div class="contact-icon">{ICONOS_SVG['phone']}</div>
+                <div class="contact-icon">
+                    {ICONOS_SVG['phone']}
+                </div>
                 <div class="contact-info">
                     <div class="label">Teléfono / WhatsApp</div>
                     <a href="https://wa.me/{config.get('whatsapp', '')}">{config.get('telefono_display', '')}</a>
                 </div>
             </div>
+            
             <div class="contact-item">
-                <div class="contact-icon">{ICONOS_SVG['email']}</div>
+                <div class="contact-icon">
+                    {ICONOS_SVG['email']}
+                </div>
                 <div class="contact-info">
                     <div class="label">Email</div>
                     <a href="mailto:{config.get('email', '')}">{config.get('email', '')}</a>
                 </div>
             </div>
+            
             <div class="contact-item">
-                <div class="contact-icon">{ICONOS_SVG['web']}</div>
+                <div class="contact-icon">
+                    {ICONOS_SVG['web']}
+                </div>
                 <div class="contact-info">
                     <div class="label">Sitio Web</div>
                     <a href="https://{config.get('website', '')}" target="_blank">{config.get('website', '')}</a>
@@ -586,103 +633,700 @@ def generar_css_mejorado():
     """Genera los estilos CSS mejorados y responsivos"""
     return '''
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; background: #f5f5f5; color: #333; line-height: 1.6; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-        .hero-header { background: linear-gradient(135deg, #ff6600 0%, #ff8844 100%); border-radius: 20px; padding: 40px 30px; text-align: center; color: white; margin-bottom: 40px; box-shadow: 0 10px 30px rgba(255, 102, 0, 0.3); position: relative; overflow: hidden; }
-        .hero-header::before { content: ''; position: absolute; top: -50%; right: -50%; width: 200%; height: 200%; background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%); animation: pulse 4s ease-in-out infinite; }
-        @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.1); opacity: 0.8; } }
-        .hero-header h1 { font-size: clamp(28px, 5vw, 42px); font-weight: 800; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; position: relative; z-index: 1; }
-        .hero-header p { font-size: clamp(16px, 2.5vw, 20px); opacity: 0.95; position: relative; z-index: 1; }
-        .info-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 40px; }
-        .info-card { background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); transition: all 0.3s ease; display: flex; align-items: center; gap: 20px; position: relative; overflow: hidden; }
-        .info-card::after { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: #ff6600; transform: scaleY(0); transition: transform 0.3s ease; }
-        .info-card:hover { transform: translateY(-5px); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12); }
-        .info-card:hover::after { transform: scaleY(1); }
-        .icon-wrapper { width: 60px; height: 60px; background: linear-gradient(135deg, #ffe8cc 0%, #ffd4a3 100%); border-radius: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-        .icon-wrapper svg { width: 32px; height: 32px; }
-        .info-content h4 { font-size: 12px; text-transform: uppercase; color: #666; font-weight: 600; letter-spacing: 1px; margin-bottom: 4px; }
-        .info-content .value { font-size: 24px; font-weight: 700; color: #ff6600; line-height: 1.2; }
-        .info-content .sub-value { font-size: 14px; color: #999; margin-top: 2px; }
-        .specs-section { background: #FFC107; border: 3px solid #000; border-radius: 20px; padding: 30px; margin-bottom: 40px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1); }
-        .specs-header { display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 25px; }
-        .specs-header h2 { font-size: clamp(20px, 3vw, 28px); color: #000; font-weight: 800; text-transform: uppercase; }
-        .specs-table { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); }
-        .specs-table table { width: 100%; border-collapse: collapse; }
-        .specs-table th { background: #000; color: #FFC107; padding: 15px 20px; text-align: left; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
-        .specs-table td { padding: 15px 20px; border-bottom: 1px solid #f0f0f0; }
-        .specs-table tr:nth-child(even) { background: #f9f9f9; }
-        .specs-table tr:last-child td { border-bottom: none; }
-        .spec-label { font-weight: 600; color: #D32F2F; display: flex; align-items: center; gap: 10px; }
-        .spec-value { font-weight: 600; color: #333; }
-        .feature-badges { display: flex; flex-direction: column; gap: 15px; margin: 40px 0; }
-        .feature-badge { background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%); color: white; padding: 20px 25px; border-radius: 12px; display: flex; align-items: center; gap: 15px; box-shadow: 0 5px 20px rgba(33, 150, 243, 0.3); transition: transform 0.3s ease; }
-        .feature-badge:hover { transform: translateX(10px); }
-        .feature-badge.green { background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%); box-shadow: 0 5px 20px rgba(76, 175, 80, 0.3); }
-        .feature-badge.purple { background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%); box-shadow: 0 5px 20px rgba(156, 39, 176, 0.3); }
-        .feature-badge svg { width: 24px; height: 24px; flex-shrink: 0; }
-        .feature-badge span { font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-        .speech-section { background: white; border-radius: 16px; padding: 30px; margin: 20px 0; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); border-left: 5px solid #FFC107; position: relative; overflow: hidden; }
-        .speech-section::before { content: ''; position: absolute; top: -50px; right: -50px; width: 100px; height: 100px; background: radial-gradient(circle, rgba(255, 193, 7, 0.1) 0%, transparent 70%); border-radius: 50%; }
-        .speech-header { display: flex; align-items: center; gap: 15px; margin-bottom: 20px; }
-        .speech-icon { width: 50px; height: 50px; background: linear-gradient(135deg, #ffe8cc 0%, #ffd4a3 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-        .speech-section h3 { color: #D32F2F; font-size: 22px; font-weight: 700; text-transform: uppercase; flex: 1; }
-        .speech-section p { font-size: 16px; line-height: 1.8; color: #555; }
-        .speech-section ul { list-style: none; padding: 0; }
-        .speech-section li { padding: 8px 0; padding-left: 30px; position: relative; color: #555; }
-        .speech-section li::before { content: '✓'; position: absolute; left: 0; color: #4caf50; font-weight: bold; font-size: 18px; }
-        .benefits-section { margin: 50px 0; }
-        .benefits-header { text-align: center; margin-bottom: 40px; }
-        .benefits-header h3 { font-size: clamp(24px, 4vw, 32px); color: #333; font-weight: 800; text-transform: uppercase; margin-bottom: 10px; }
-        .benefits-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 25px; }
-        .benefit-card { background: white; border-radius: 16px; padding: 30px 25px; text-align: center; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); border-top: 4px solid #ff6600; transition: all 0.3s ease; position: relative; }
-        .benefit-card:hover { transform: translateY(-10px); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15); }
-        .benefit-icon { width: 70px; height: 70px; background: linear-gradient(135deg, #ffe8cc 0%, #ffd4a3 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; position: relative; }
-        .benefit-icon::after { content: ''; position: absolute; width: 100%; height: 100%; background: inherit; border-radius: 50%; opacity: 0.3; animation: ripple 2s ease-out infinite; }
-        @keyframes ripple { 0% { transform: scale(1); opacity: 0.3; } 100% { transform: scale(1.3); opacity: 0; } }
-        .benefit-icon svg { width: 35px; height: 35px; position: relative; z-index: 1; }
-        .benefit-card h4 { font-size: 18px; color: #333; font-weight: 700; margin-bottom: 10px; text-transform: uppercase; }
-        .benefit-card p { font-size: 14px; color: #666; line-height: 1.6; }
-        .cta-section { background: linear-gradient(135deg, #000 0%, #333 100%); border-radius: 20px; padding: 50px 30px; text-align: center; margin: 50px 0; box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3); position: relative; overflow: hidden; }
-        .cta-section::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle, rgba(255, 193, 7, 0.1) 0%, transparent 70%); animation: rotate 10s linear infinite; }
-        @keyframes rotate { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .cta-section h3 { color: #FFC107; font-size: clamp(24px, 4vw, 32px); font-weight: 800; text-transform: uppercase; margin-bottom: 15px; position: relative; z-index: 1; }
-        .cta-section p { color: rgba(255, 255, 255, 0.9); font-size: 18px; margin-bottom: 35px; position: relative; z-index: 1; }
-        .cta-buttons { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; position: relative; z-index: 1; }
-        .cta-button { display: inline-flex; align-items: center; gap: 12px; padding: 18px 35px; border-radius: 50px; text-decoration: none; font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 0.5px; transition: all 0.3s ease; position: relative; overflow: hidden; }
-        .cta-button::before { content: ''; position: absolute; top: 50%; left: 50%; width: 0; height: 0; background: rgba(255, 255, 255, 0.2); border-radius: 50%; transform: translate(-50%, -50%); transition: width 0.6s, height 0.6s; }
-        .cta-button:hover::before { width: 300px; height: 300px; }
-        .cta-button.whatsapp { background: linear-gradient(135deg, #25d366 0%, #20ba5a 100%); color: white; box-shadow: 0 5px 20px rgba(37, 211, 102, 0.4); }
-        .cta-button.whatsapp:hover { transform: translateY(-3px); box-shadow: 0 8px 30px rgba(37, 211, 102, 0.5); }
-        .cta-button.pdf { background: linear-gradient(135deg, #FFC107 0%, #ffb300 100%); color: #000; box-shadow: 0 5px 20px rgba(255, 193, 7, 0.4); }
-        .cta-button.pdf:hover { transform: translateY(-3px); box-shadow: 0 8px 30px rgba(255, 193, 7, 0.5); }
-        .cta-button.email { background: linear-gradient(135deg, #D32F2F 0%, #c62828 100%); color: white; box-shadow: 0 5px 20px rgba(211, 47, 47, 0.4); }
-        .cta-button.email:hover { transform: translateY(-3px); box-shadow: 0 8px 30px rgba(211, 47, 47, 0.5); }
-        .cta-button svg { width: 24px; height: 24px; position: relative; z-index: 1; }
-        .cta-button span { position: relative; z-index: 1; }
-        .contact-footer { background: white; border-radius: 16px; padding: 40px 30px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); text-align: center; }
-        .contact-footer h4 { font-size: 24px; color: #333; font-weight: 700; margin-bottom: 30px; text-transform: uppercase; }
-        .contact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 30px; max-width: 800px; margin: 0 auto; }
-        .contact-item { display: flex; flex-direction: column; align-items: center; gap: 10px; }
-        .contact-icon { width: 50px; height: 50px; background: linear-gradient(135deg, #ffe8cc 0%, #ffd4a3 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; }
-        .contact-icon svg { width: 24px; height: 24px; }
-        .contact-info { text-align: center; }
-        .contact-info .label { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
-        .contact-info a { color: #ff6600; text-decoration: none; font-weight: 600; font-size: 16px; transition: color 0.3s ease; }
-        .contact-info a:hover { color: #ff8844; }
-        @media (max-width: 768px) {
-            .container { padding: 15px; }
-            .hero-header { padding: 30px 20px; }
-            .info-cards { grid-template-columns: 1fr; gap: 15px; }
-            .specs-section { padding: 20px; }
-            .specs-table { overflow-x: auto; }
-            .specs-table table { min-width: 500px; }
-            .cta-buttons { flex-direction: column; align-items: stretch; }
-            .cta-button { justify-content: center; }
-            .benefits-grid { grid-template-columns: 1fr; }
-            .contact-grid { grid-template-columns: 1fr; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade-in { animation: fadeInUp 0.6s ease-out; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        /* Header Hero Section */
+        .hero-header {
+            background: linear-gradient(135deg, #ff6600 0%, #ff8844 100%);
+            border-radius: 20px;
+            padding: 40px 30px;
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+            box-shadow: 0 10px 30px rgba(255, 102, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .hero-header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: pulse 4s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+        
+        .hero-header h1 {
+            font-size: clamp(28px, 5vw, 42px);
+            font-weight: 800;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .hero-header p {
+            font-size: clamp(16px, 2.5vw, 20px);
+            opacity: 0.95;
+            position: relative;
+            z-index: 1;
+        }
+        
+        /* Info Cards Grid */
+        .info-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        
+        .info-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .info-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: #ff6600;
+            transform: scaleY(0);
+            transition: transform 0.3s ease;
+        }
+        
+        .info-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+        }
+        
+        .info-card:hover::after {
+            transform: scaleY(1);
+        }
+        
+        .icon-wrapper {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #ffe8cc 0%, #ffd4a3 100%);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        
+        .icon-wrapper svg {
+            width: 32px;
+            height: 32px;
+        }
+        
+        .info-content h4 {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #666;
+            font-weight: 600;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+        
+        .info-content .value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #ff6600;
+            line-height: 1.2;
+        }
+        
+        .info-content .sub-value {
+            font-size: 14px;
+            color: #999;
+            margin-top: 2px;
+        }
+        
+        /* Specifications Table */
+        .specs-section {
+            background: #FFC107;
+            border: 3px solid #000;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 40px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        .specs-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .specs-header h2 {
+            font-size: clamp(20px, 3vw, 28px);
+            color: #000;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+        
+        .specs-table {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .specs-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .specs-table th {
+            background: #000;
+            color: #FFC107;
+            padding: 15px 20px;
+            text-align: left;
+            font-weight: 700;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .specs-table td {
+            padding: 15px 20px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .specs-table tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+        
+        .specs-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .spec-label {
+            font-weight: 600;
+            color: #D32F2F;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .spec-value {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        /* Feature Badges */
+        .feature-badges {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin: 40px 0;
+        }
+        
+        .feature-badge {
+            background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+            color: white;
+            padding: 20px 25px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 5px 20px rgba(33, 150, 243, 0.3);
+            transition: transform 0.3s ease;
+        }
+        
+        .feature-badge:hover {
+            transform: translateX(10px);
+        }
+        
+        .feature-badge.green {
+            background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
+            box-shadow: 0 5px 20px rgba(76, 175, 80, 0.3);
+        }
+        
+        .feature-badge.purple {
+            background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%);
+            box-shadow: 0 5px 20px rgba(156, 39, 176, 0.3);
+        }
+        
+        .feature-badge svg {
+            width: 24px;
+            height: 24px;
+            flex-shrink: 0;
+        }
+        
+        .feature-badge span {
+            font-size: 18px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Sales Speech Sections */
+        .speech-section {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            margin: 20px 0;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border-left: 5px solid #FFC107;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .speech-section::before {
+            content: '';
+            position: absolute;
+            top: -50px;
+            right: -50px;
+            width: 100px;
+            height: 100px;
+            background: radial-gradient(circle, rgba(255, 193, 7, 0.1) 0%, transparent 70%);
+            border-radius: 50%;
+        }
+        
+        .speech-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .speech-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #ffe8cc 0%, #ffd4a3 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        
+        .speech-section h3 {
+            color: #D32F2F;
+            font-size: 22px;
+            font-weight: 700;
+            text-transform: uppercase;
+            flex: 1;
+        }
+        
+        .speech-section p {
+            font-size: 16px;
+            line-height: 1.8;
+            color: #555;
+        }
+        
+        .speech-section ul {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .speech-section li {
+            padding: 8px 0;
+            padding-left: 30px;
+            position: relative;
+            color: #555;
+        }
+        
+        .speech-section li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: #4caf50;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        
+        /* Benefits Grid */
+        .benefits-section {
+            margin: 50px 0;
+        }
+        
+        .benefits-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .benefits-header h3 {
+            font-size: clamp(24px, 4vw, 32px);
+            color: #333;
+            font-weight: 800;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+        
+        .benefits-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 25px;
+        }
+        
+        .benefit-card {
+            background: white;
+            border-radius: 16px;
+            padding: 30px 25px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border-top: 4px solid #ff6600;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .benefit-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+        }
+        
+        .benefit-icon {
+            width: 70px;
+            height: 70px;
+            background: linear-gradient(135deg, #ffe8cc 0%, #ffd4a3 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            position: relative;
+        }
+        
+        .benefit-icon::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: inherit;
+            border-radius: 50%;
+            opacity: 0.3;
+            animation: ripple 2s ease-out infinite;
+        }
+        
+        @keyframes ripple {
+            0% { transform: scale(1); opacity: 0.3; }
+            100% { transform: scale(1.3); opacity: 0; }
+        }
+        
+        .benefit-icon svg {
+            width: 35px;
+            height: 35px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .benefit-card h4 {
+            font-size: 18px;
+            color: #333;
+            font-weight: 700;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+        
+        .benefit-card p {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.6;
+        }
+        
+        /* CTA Section */
+        .cta-section {
+            background: linear-gradient(135deg, #000 0%, #333 100%);
+            border-radius: 20px;
+            padding: 50px 30px;
+            text-align: center;
+            margin: 50px 0;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .cta-section::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 193, 7, 0.1) 0%, transparent 70%);
+            animation: rotate 10s linear infinite;
+        }
+        
+        @keyframes rotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .cta-section h3 {
+            color: #FFC107;
+            font-size: clamp(24px, 4vw, 32px);
+            font-weight: 800;
+            text-transform: uppercase;
+            margin-bottom: 15px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .cta-section p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 18px;
+            margin-bottom: 35px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .cta-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .cta-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            padding: 18px 35px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .cta-button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+        
+        .cta-button:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+        
+        .cta-button.whatsapp {
+            background: linear-gradient(135deg, #25d366 0%, #20ba5a 100%);
+            color: white;
+            box-shadow: 0 5px 20px rgba(37, 211, 102, 0.4);
+        }
+        
+        .cta-button.whatsapp:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 30px rgba(37, 211, 102, 0.5);
+        }
+        
+        .cta-button.pdf {
+            background: linear-gradient(135deg, #FFC107 0%, #ffb300 100%);
+            color: #000;
+            box-shadow: 0 5px 20px rgba(255, 193, 7, 0.4);
+        }
+        
+        .cta-button.pdf:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 30px rgba(255, 193, 7, 0.5);
+        }
+        
+        .cta-button.email {
+            background: linear-gradient(135deg, #D32F2F 0%, #c62828 100%);
+            color: white;
+            box-shadow: 0 5px 20px rgba(211, 47, 47, 0.4);
+        }
+        
+        .cta-button.email:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 30px rgba(211, 47, 47, 0.5);
+        }
+        
+        .cta-button svg {
+            width: 24px;
+            height: 24px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .cta-button span {
+            position: relative;
+            z-index: 1;
+        }
+        
+        /* Contact Footer */
+        .contact-footer {
+            background: white;
+            border-radius: 16px;
+            padding: 40px 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            text-align: center;
+        }
+        
+        .contact-footer h4 {
+            font-size: 24px;
+            color: #333;
+            font-weight: 700;
+            margin-bottom: 30px;
+            text-transform: uppercase;
+        }
+        
+        .contact-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 30px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .contact-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .contact-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #ffe8cc 0%, #ffd4a3 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .contact-icon svg {
+            width: 24px;
+            height: 24px;
+        }
+        
+        .contact-info {
+            text-align: center;
+        }
+        
+        .contact-info .label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .contact-info a {
+            color: #ff6600;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 16px;
+            transition: color 0.3s ease;
+        }
+        
+        .contact-info a:hover {
+            color: #ff8844;
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .hero-header {
+                padding: 30px 20px;
+            }
+            
+            .info-cards {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .specs-section {
+                padding: 20px;
+            }
+            
+            .specs-table {
+                overflow-x: auto;
+            }
+            
+            .specs-table table {
+                min-width: 500px;
+            }
+            
+            .cta-buttons {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .cta-button {
+                justify-content: center;
+            }
+            
+            .benefits-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .contact-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .animate-fade-in {
+            animation: fadeInUp 0.6s ease-out;
+        }
     </style>
     '''

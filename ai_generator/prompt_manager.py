@@ -16,7 +16,7 @@ class PromptManager:
         self.module_path = Path(__file__).parent
         self.versions_path = self.module_path / "versions"
         self.history_file = self.versions_path / "prompt_history.json"
-        self.base_prompt_file = self.module_path / "templates" / "detailed_product_prompt.json"
+        self.base_prompt_file = self.module_path / "templates" / "default_prompt.json"
         
         # Crear directorios si no existen
         self.versions_path.mkdir(exist_ok=True)
@@ -64,10 +64,40 @@ class PromptManager:
             self._save_history()
     
     def _get_default_base_prompt(self) -> str:
-        """Retorna el prompt base por defecto (ahora desde el nuevo archivo)"""
-        # Esta función ahora es un fallback, el prompt real se carga desde el JSON.
-        # El contenido se deja vacío ya que no debería ser llamado si el JSON existe.
-        return ""
+        """Retorna el prompt base por defecto"""
+        return """Eres un experto en redacción de descripciones comerciales para productos industriales.
+        
+Genera una descripción profesional y persuasiva para el siguiente producto:
+
+Tipo de producto: {product_type}
+Información del producto:
+- Nombre: {nombre}
+- Marca: {marca}
+- Modelo: {modelo}
+- Potencia: {potencia_kva} KVA
+- Motor: {motor}
+- Combustible: {combustible}
+- Características técnicas: {tech_specs}
+
+INSTRUCCIONES ESPECÍFICAS:
+1. La descripción debe ser profesional y orientada a la venta.
+2. Destaca los beneficios principales y ventajas competitivas.
+3. Menciona aplicaciones típicas del producto ({applications}).
+4. Enfócate especialmente en: {focus_areas}.
+5. La descripción debe tener entre 150-200 palabras.
+6. USA SOLO PÁRRAFOS, no uses listas con viñetas ni bullets.
+7. NO uses emojis, íconos ni ningún tipo de caracter especial. El texto debe ser plano.
+8. Mantén un tono profesional pero cercano y persuasivo.
+9. Divide el contenido en 2-3 párrafos bien estructurados.
+10. MUY IMPORTANTE: Al mencionar el consumo de combustible, si el tipo de combustible es 'Gas', utiliza las unidades 'm³/h'. Para cualquier otro tipo de combustible (Diésel, Nafta, etc.), utiliza 'L/h'.
+
+FORMATO DE SALIDA:
+- Solo devuelve el texto de los párrafos.
+- Separa cada párrafo con un salto de línea simple
+- No incluyas etiquetas HTML ni formato markdown
+- No uses asteriscos, guiones ni viñetas
+
+Recuerda: El objetivo es convencer al cliente de que este es el producto ideal para sus necesidades."""
     
     def get_current_prompt(self) -> Dict:
         """Obtiene el prompt actualmente activo"""

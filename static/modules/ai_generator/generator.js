@@ -116,7 +116,7 @@ async function savePromptVersion() {
     const promptText = document.getElementById('prompt-editor').value;
     
     if (!name || !description) {
-        alert('Por favor completa el nombre y descripción de la versión');
+        console.warn('Por favor completa el nombre y descripción de la versión');
         return;
     }
     
@@ -134,53 +134,79 @@ async function savePromptVersion() {
         const result = await response.json();
         
         if (result.success) {
-            alert('Versión guardada exitosamente');
+            console.log('✅ Versión guardada exitosamente');
             document.getElementById('version-name').value = '';
             document.getElementById('version-description').value = '';
             loadPromptVersions();
         } else {
-            alert('Error al guardar: ' + result.error);
+            console.error('Error al guardar: ' + result.error);
         }
     } catch (error) {
-        alert('Error al guardar versión: ' + error.message);
+        console.error('Error al guardar versión: ' + error.message);
     }
 }
 
 async function updateBasePrompt() {
-    const description = prompt('Describe los cambios realizados al prompt base:');
-    if (!description) return;
+    // Crear modal para descripción
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.style.display = 'block';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h3>Actualizar Prompt Base</h3>
+            <p>¿Estás seguro de actualizar el prompt base? Se creará un respaldo automático.</p>
+            <label>Describe los cambios realizados:</label>
+            <textarea id="update-description" rows="3" style="width: 100%; margin: 10px 0;"></textarea>
+            <div class="modal-buttons">
+                <button onclick="this.closest('.modal').remove()" class="btn btn-secondary">Cancelar</button>
+                <button onclick="confirmUpdateBasePrompt(this)" class="btn btn-primary">Actualizar</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+async function confirmUpdateBasePrompt(button) {
+    const modal = button.closest('.modal');
+    const description = modal.querySelector('#update-description').value.trim();
+    
+    if (!description) {
+        console.warn('Por favor describe los cambios realizados');
+        return;
+    }
+    
+    modal.remove();
     
     const promptText = document.getElementById('prompt-editor').value;
     
-    if (confirm('¿Estás seguro de actualizar el prompt base? Se creará un respaldo automático.')) {
-        try {
-            const response = await fetch(`${API_BASE_URL}/update-base-prompt`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    prompt: promptText,
-                    description: description
-                })
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                alert('Prompt base actualizado exitosamente');
-                loadPromptVersions();
-            } else {
-                alert('Error al actualizar: ' + result.error);
-            }
-        } catch (error) {
-            alert('Error al actualizar prompt base: ' + error.message);
+    try {
+        const response = await fetch(`${API_BASE_URL}/update-base-prompt`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prompt: promptText,
+                description: description
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log('✅ Prompt base actualizado exitosamente');
+            loadPromptVersions();
+        } else {
+            console.error('Error al actualizar: ' + result.error);
         }
+    } catch (error) {
+        console.error('Error al actualizar prompt base: ' + error.message);
     }
 }
 
 // Funciones de Preview
 async function generatePreview() {
     if (!moduleState.isApiValid) {
-        alert('Por favor valida tu API key primero');
+        console.warn('Por favor valida tu API key primero');
+        showStatus(document.getElementById('preview-container'), 'Por favor valida tu API key primero', 'error');
         return;
     }
     
@@ -321,18 +347,26 @@ function formatPrompt() {
 }
 
 function showPromptHelp() {
-    alert(`
-Consejos para escribir buenos prompts:
-
-1. Sé específico y claro en las instrucciones
-2. Usa las variables disponibles ({nombre}, {marca}, etc.)
-3. Define el tono y estilo deseado
-4. Especifica restricciones (sin emojis, longitud, etc.)
-5. Incluye ejemplos si es necesario
-6. Prueba y ajusta iterativamente
-
-Recuerda: Un buen prompt produce resultados consistentes y de calidad.
-    `);
+    // Mostrar ayuda en un elemento de la interfaz en lugar de un popup
+    const helpModal = document.createElement('div');
+    helpModal.className = 'modal';
+    helpModal.style.display = 'block';
+    helpModal.innerHTML = `
+        <div class="modal-content">
+            <span class="close" onclick="this.parentElement.parentElement.remove()">&times;</span>
+            <h3>Consejos para escribir buenos prompts</h3>
+            <ol>
+                <li>Sé específico y claro en las instrucciones</li>
+                <li>Usa las variables disponibles ({nombre}, {marca}, etc.)</li>
+                <li>Define el tono y estilo deseado</li>
+                <li>Especifica restricciones (sin emojis, longitud, etc.)</li>
+                <li>Incluye ejemplos si es necesario</li>
+                <li>Prueba y ajusta iterativamente</li>
+            </ol>
+            <p><strong>Recuerda:</strong> Un buen prompt produce resultados consistentes y de calidad.</p>
+        </div>
+    `;
+    document.body.appendChild(helpModal);
 }
 
 // Event listeners para cerrar modales

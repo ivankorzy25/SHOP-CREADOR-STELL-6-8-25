@@ -47,11 +47,11 @@ async function startBrowser() {
             updateUI();
         } else {
             addLog(`Error: ${result.message}`, 'ERROR');
-            alert(result.message);
+            console.error(result.message);
         }
     } catch (error) {
         addLog(`Error al iniciar navegador: ${error.message}`, 'ERROR');
-        alert('Error al comunicarse con el servidor');
+        console.error('Error al comunicarse con el servidor');
     } finally {
         updateButton('start-browser', false, '🚀 Iniciar Navegador');
     }
@@ -89,7 +89,8 @@ async function confirmLogin() {
     const productsToProcess = productsFrame.contentWindow.getSelectedProductsForProcessing();
     
     if (!productsToProcess || productsToProcess.length === 0) {
-        alert('No hay productos seleccionados en la pestaña "Productos". Por favor, selecciona los productos que deseas procesar y vuelve a confirmar el login.');
+        addLog('No hay productos seleccionados en la pestaña "Productos". Por favor, selecciona los productos que deseas procesar y vuelve a confirmar el login.', 'ERROR');
+        console.warn('No hay productos seleccionados para procesar');
         return;
     }
     
@@ -115,18 +116,34 @@ async function confirmLogin() {
             updateUI();
         } else {
             addLog(`Error al iniciar procesamiento: ${result.error}`, 'ERROR');
-            alert(`Error al iniciar procesamiento: ${result.error}`);
+            console.error(`Error al iniciar procesamiento: ${result.error}`);
         }
     } catch (error) {
         addLog(`Error de comunicación al iniciar procesamiento: ${error.message}`, 'ERROR');
-        alert(`Error de comunicación al iniciar procesamiento: ${error.message}`);
+        console.error(`Error de comunicación al iniciar procesamiento: ${error.message}`);
     }
 }
 
 async function closeBrowser() {
-    if (!confirm('¿Estás seguro de cerrar el navegador?')) {
-        return;
-    }
+    // Crear modal de confirmación personalizado
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.style.display = 'block';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h3>Confirmar cierre</h3>
+            <p>¿Estás seguro de cerrar el navegador?</p>
+            <div class="modal-buttons">
+                <button onclick="this.closest('.modal').remove()" class="btn btn-secondary">Cancelar</button>
+                <button onclick="confirmCloseBrowser(this)" class="btn btn-danger">Cerrar navegador</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+async function confirmCloseBrowser(button) {
+    button.closest('.modal').remove();
     
     try {
         const response = await fetch(`${API_BASE_URL}/close-browser`, {
@@ -236,9 +253,25 @@ async function resumeProcessing() {
 }
 
 async function stopProcessing() {
-    if (!confirm('¿Estás seguro de detener el procesamiento?')) {
-        return;
-    }
+    // Crear modal de confirmación personalizado
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.style.display = 'block';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h3>Confirmar detención</h3>
+            <p>¿Estás seguro de detener el procesamiento?</p>
+            <div class="modal-buttons">
+                <button onclick="this.closest('.modal').remove()" class="btn btn-secondary">Cancelar</button>
+                <button onclick="confirmStopProcessing(this)" class="btn btn-danger">Detener proceso</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+async function confirmStopProcessing(button) {
+    button.closest('.modal').remove();
     
     try {
         const response = await fetch(`${API_BASE_URL}/stop`, {
@@ -474,7 +507,8 @@ window.addEventListener('products:process-request', async (event) => {
     const { products, settings } = event.detail;
     
     if (!moduleState.isConnected || !products || products.length === 0) {
-        alert('El navegador no está conectado o no hay productos para procesar');
+        addLog('El navegador no está conectado o no hay productos para procesar', 'ERROR');
+        console.warn('El navegador no está conectado o no hay productos para procesar');
         return;
     }
     

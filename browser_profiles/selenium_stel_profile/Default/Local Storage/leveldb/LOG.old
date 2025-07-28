@@ -1,3 +1,6 @@
-2025/07/24-08:22:51.533 161700 Reusing MANIFEST /Users/ivan/Desktop/github-ivankorzy2025-cloude/claude/browser_profiles/selenium_stel_profile/Default/Local Storage/leveldb/MANIFEST-000001
-2025/07/24-08:22:51.537 161700 Recovering log #34
-2025/07/24-08:22:51.537 161700 Reusing old log /Users/ivan/Desktop/github-ivankorzy2025-cloude/claude/browser_profiles/selenium_stel_profile/Default/Local Storage/leveldb/000034.log 
+2025/07/28-15:07:38.515 4881e Reusing MANIFEST /Users/ivankorzy/Desktop/github-ivankorzy2025-cloude/claude/browser_profiles/selenium_stel_profile/Default/Local Storage/leveldb/MANIFEST-000001
+2025/07/28-15:07:38.517 4881e Recovering log #34
+2025/07/28-15:07:38.517 4881e Reusing old log /Users/ivankorzy/Desktop/github-ivankorzy2025-cloude/claude/browser_profiles/selenium_stel_profile/Default/Local Storage/leveldb/000034.log 
+2025/07/28-15:09:45.553 48820 Level-0 table #38: started
+2025/07/28-15:09:45.564 48820 Level-0 table #38: 11736 bytes OK
+2025/07/28-15:09:45.569 48820 Delete type=0 #34

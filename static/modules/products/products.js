@@ -77,11 +77,11 @@ async function connectDatabase() {
         // Actualizar estadísticas
         updateStatistics();
         
-        alert('Datos cargados correctamente desde la base de datos.');
+        console.log('✅ Datos cargados correctamente desde la base de datos.');
         
     } catch (error) {
         console.error("Error al cargar productos desde la API:", error);
-        alert(`No se pudieron cargar los datos desde la base de datos. Error: ${error.message}`);
+        console.error(`No se pudieron cargar los datos desde la base de datos. Error: ${error.message}`);
     } finally {
         updateButton('connect-db', false, '🔌 Conectar');
     }
@@ -451,7 +451,7 @@ async function selectByFilter() {
             renderProductsTable();
             updateStatistics();
             
-            alert(`${result.selected_skus.length} productos seleccionados`);
+            console.log(`✅ ${result.selected_skus.length} productos seleccionados`);
         }
     } catch (error) {
         console.error('Error en selección por criterio:', error);
@@ -664,7 +664,7 @@ function showProductDetailsModal(product) {
 // Funciones de Procesamiento
 async function processSelected() {
     if (moduleState.selectedProducts.size === 0) {
-        alert('No hay productos seleccionados');
+        console.warn('No hay productos seleccionados');
         return;
     }
     
@@ -734,7 +734,7 @@ async function confirmProcessing() {
         }
     }));
     
-    alert(`Enviando ${productsToProcess.length} productos para procesamiento`);
+    console.log(`✅ Enviando ${productsToProcess.length} productos para procesamiento`);
 }
 
 // Funciones de Guardado/Carga
@@ -756,7 +756,7 @@ async function saveSelection() {
         const result = await response.json();
         
         if (result.success) {
-            alert('Selección guardada correctamente');
+            console.log('✅ Selección guardada correctamente');
         }
     } catch (error) {
         console.error('Error guardando selección:', error);
@@ -782,7 +782,7 @@ async function loadSelection() {
             // Recargar productos
             await refreshProducts();
             
-            alert(`Cargados ${result.products.length} productos`);
+            console.log(`✅ Cargados ${result.products.length} productos`);
         }
     } catch (error) {
         console.error('Error cargando selección:', error);
@@ -791,11 +791,30 @@ async function loadSelection() {
 
 async function exportSelection() {
     if (moduleState.selectedProducts.size === 0) {
-        alert('No hay productos seleccionados para exportar');
+        console.warn('No hay productos seleccionados para exportar');
         return;
     }
     
-    const format = confirm('¿Exportar en formato Excel?\n(Cancelar para JSON)') ? 'excel' : 'json';
+    // Crear modal para seleccionar formato
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.style.display = 'block';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h3>Seleccionar formato de exportación</h3>
+            <p>¿En qué formato deseas exportar los productos seleccionados?</p>
+            <div class="modal-buttons">
+                <button onclick="confirmExport('excel', this)" class="btn btn-primary">📊 Excel</button>
+                <button onclick="confirmExport('json', this)" class="btn btn-secondary">📄 JSON</button>
+                <button onclick="this.closest('.modal').remove()" class="btn">Cancelar</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+async function confirmExport(format, button) {
+    button.closest('.modal').remove();
     
     try {
         const response = await fetch(`${API_BASE_URL}/export-selection`, {
@@ -826,7 +845,7 @@ async function saveCurrentFilter() {
 async function confirmSaveFilter() {
     const name = document.getElementById('filter-name').value.trim();
     if (!name) {
-        alert('Por favor ingrese un nombre para el filtro');
+        console.warn('Por favor ingrese un nombre para el filtro');
         return;
     }
     
@@ -845,7 +864,7 @@ async function confirmSaveFilter() {
         if (result.success) {
             closeModal('save-filter-modal');
             loadFilterOptions(); // Recargar lista
-            alert('Filtro guardado correctamente');
+            console.log('✅ Filtro guardado correctamente');
         }
     } catch (error) {
         console.error('Error guardando filtro:', error);

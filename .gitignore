@@ -1,0 +1,13 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Browser profiles
+browser_profiles/
+
+# Logs
+logs/
+
+# Virtual environment
+.venv/

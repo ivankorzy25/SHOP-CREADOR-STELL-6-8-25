@@ -50,38 +50,53 @@ class AIHandler:
             return False
     
     def _load_product_types(self) -> Dict:
-        """Carga la configuración de tipos de productos"""
+        """Carga la configuración de tipos de productos de forma robusta."""
         template_path = self.module_path / "templates" / "product_templates.json"
         
+        # Estructura por defecto para evitar errores si el JSON está mal formado
         default_types = {
             "grupo_electrogeno": {
-                "keywords": ["generador", "grupo electrógeno", "kva", "kw"],
-                "focus": "potencia, autonomía, motor",
-                "applications": "respaldo energético, obras, industria"
+                "keywords": ["generador", "grupo electrógeno", "kva", "kw", "diesel", "nafta", "gas"],
+                "focus": "potencia, autonomía, motor, confiabilidad",
+                "applications": "respaldo energético, obras, industria, eventos, comercios",
+                "extraction_prompt": "Extrae las siguientes especificaciones técnicas de un PDF de un generador eléctrico: 'potencia_kva', 'potencia_kw', 'voltaje', 'frecuencia', 'motor', 'alternador', 'consumo_lph', 'capacidad_tanque_l', 'nivel_ruido_dba', 'dimensiones_mm', 'peso_kg', 'tiene_cabina', 'tiene_tta', 'es_inverter'.",
+                "description_prompt": "Eres un experto en marketing de equipos de energía. Genera una descripción de venta detallada y persuasiva para el siguiente generador eléctrico, destacando su confiabilidad, eficiencia y aplicaciones ideales. Utiliza la siguiente información: Nombre: {nombre}, Marca: {marca}, Modelo: {modelo}, Potencia: {potencia_kva} KVA, Motor: {motor}, Consumo: {consumo_lph} L/h. Menciona si tiene cabina ({tiene_cabina}) o TTA ({tiene_tta})."
             },
             "compresor": {
                 "keywords": ["compresor", "psi", "bar", "aire comprimido"],
-                "focus": "presión, caudal, tanque",
-                "applications": "talleres, pintura, herramientas neumáticas"
+                "focus": "presión, caudal, capacidad del tanque",
+                "applications": "talleres, pintura, herramientas neumáticas, limpieza",
+                "extraction_prompt": "Extrae las siguientes especificaciones de un PDF de un compresor: 'potencia_hp', 'presion_bar', 'caudal_lpm', 'capacidad_tanque_l', 'tipo_motor', 'dimensiones_mm', 'peso_kg'.",
+                "description_prompt": "Eres un redactor técnico especializado en herramientas industriales. Crea una descripción de producto para el compresor {nombre} ({modelo}), enfocándote en su potencia de {potencia_hp} HP y su presión de {presion_bar} Bar. Destaca su uso en talleres y para herramientas neumáticas."
             },
             "motobomba": {
                 "keywords": ["motobomba", "bomba", "caudal", "litros"],
-                "focus": "caudal, altura máxima, succión",
-                "applications": "riego, drenaje, construcción"
+                "focus": "caudal, altura máxima de bombeo, diámetro de succión",
+                "applications": "riego, drenaje de inundaciones, construcción, agricultura",
+                "extraction_prompt": "Extrae las siguientes especificaciones de un PDF de una motobomba: 'potencia_hp', 'caudal_lph', 'altura_maxima_m', 'diametro_succ_pulg', 'tipo_motor', 'peso_kg'.",
+                "description_prompt": "Crea una descripción para la motobomba {nombre}, modelo {modelo}. Resalta su caudal de {caudal_lph} L/h y su motor de {potencia_hp} HP. Menciona sus aplicaciones en riego, agricultura y construcción."
             },
-            "motocultivador": {
-                "keywords": ["motocultivador", "cultivador", "labranza"],
-                "focus": "potencia, ancho de trabajo, profundidad",
-                "applications": "agricultura, huertos, preparación de suelo"
+            "generico": {
+                "keywords": [],
+                "focus": "características principales, calidad, durabilidad",
+                "applications": "uso general, profesional, industrial",
+                "extraction_prompt": "Extrae las especificaciones técnicas clave del siguiente documento. Busca datos como: 'potencia', 'motor', 'dimensiones', 'peso', 'voltaje', 'capacidad'.",
+                "description_prompt": "Genera una descripción de producto profesional y clara para {nombre}, modelo {modelo}. Utiliza la información técnica extraída para describir sus características y beneficios principales."
             }
         }
         
         if template_path.exists():
             try:
                 with open(template_path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except:
-                pass
+                    custom_types = json.load(f)
+                    # Actualizar los valores por defecto con los personalizados
+                    for key, value in custom_types.items():
+                        if key in default_types:
+                            default_types[key].update(value)
+                        else:
+                            default_types[key] = value
+            except Exception as e:
+                print(f"⚠️ Error al cargar 'product_templates.json': {e}. Se usarán los valores por defecto.")
         
         return default_types
     

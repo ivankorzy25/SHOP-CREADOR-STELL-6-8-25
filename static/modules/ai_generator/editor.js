@@ -372,12 +372,17 @@ async function refreshPreview() {
         return;
     }
     
+    const usePremium = document.getElementById('use-premium-generator').checked;
+    const loadingMessage = usePremium 
+        ? "Usando generador HTML premium..." 
+        : "Generando con prompt personalizado...";
+
     // Mostrar indicador de carga en el preview
     const container = document.getElementById('preview-container');
     container.innerHTML = `
         <div class="preview-placeholder">
             <div class="loading-spinner"></div>
-            <p>Generando vista previa...</p>
+            <p>${loadingMessage}</p>
         </div>
     `;
     
@@ -386,7 +391,8 @@ async function refreshPreview() {
             product: editorState.currentProduct,
             prompt: prompt,
             api_key: editorState.apiKey,
-            pdf_content: editorState.productPdfContent
+            pdf_content: editorState.productPdfContent,
+            use_premium_generator: usePremium
         };
         
         console.log("Enviando al backend para generar vista previa:", payload);

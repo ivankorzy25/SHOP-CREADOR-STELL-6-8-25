@@ -748,3 +748,23 @@ body {
 ::-webkit-scrollbar-thumb:hover {
     background: #555;
 }
+
+.preview-controls {
+    background-color: #f0f0f0;
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+}
+
+.preview-controls label {
+    cursor: pointer;
+    font-size: 14px;
+    color: #333;
+    font-weight: 500;
+}
+
+.preview-controls input[type="checkbox"] {
+    margin-right: 8px;
+    transform: scale(1.2);
+    accent-color: var(--primary-color);
+}

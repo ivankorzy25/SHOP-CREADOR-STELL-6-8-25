@@ -567,16 +567,15 @@ def test_prompt_with_product():
         temp_prompt = data.get('prompt')
         api_key = data.get('api_key')
         pdf_content = data.get('pdf_content')
-        
-        # DEBUG: Imprimir el prompt recibido
+        use_premium = data.get('use_premium_generator', False)
+
         logger.info("=== DEBUG: test_prompt_with_product ===")
-        logger.info(f"Prompt recibido (primeros 500 chars): {temp_prompt[:500] if temp_prompt else 'NINGUNO'}")
-        logger.info(f"Producto: {product_data.get('nombre') if product_data else 'NINGUNO'}")
+        logger.info(f"Producto: {product_data.get('nombre') if product_data else 'N/A'}")
+        logger.info(f"Usar generador premium: {use_premium}")
+        logger.info(f"Prompt recibido: {'Sí' if temp_prompt else 'No'}")
         logger.info("=====================================")
-        
-        # Usar el handler principal (ya tiene Gemini 2.0 configurado)
+
         if not ai_handler.model:
-            # Si no hay modelo inicializado, intentar inicializar
             if api_key:
                 ai_handler.initialize_model(api_key)
             elif not ai_handler.initialize_model(ai_handler.api_key):
@@ -584,15 +583,12 @@ def test_prompt_with_product():
                     'success': False, 
                     'error': 'No hay modelo de IA configurado. Por favor valida tu API key.'
                 })
-        
-        # Usar el handler principal que ya tiene Gemini 2.0
+
         temp_handler = ai_handler
         
-        # Agregar contenido del PDF si está disponible
         if pdf_content and product_data:
             product_data['pdf_content'] = pdf_content
-        
-        # Generar descripción con timeout y manejo de errores mejorado
+
         import threading
         import time
         
@@ -601,20 +597,29 @@ def test_prompt_with_product():
         
         def generate_with_timeout():
             try:
-                html_result = temp_handler.generate_description(
-                    product_info=product_data,
-                    prompt_template=temp_prompt,
-                    config=get_contact_config()
-                )
+                # Decidir qué método usar
+                if use_premium or not temp_prompt:
+                    logger.info("Ejecutando generador PREMIUM...")
+                    html_result = temp_handler.generate_description(
+                        product_info=product_data,
+                        prompt_template=None,  # Forzar uso de premium
+                        config=get_contact_config()
+                    )
+                else:
+                    logger.info("Ejecutando con prompt PERSONALIZADO...")
+                    html_result = temp_handler.generate_description(
+                        product_info=product_data,
+                        prompt_template=temp_prompt,
+                        config=get_contact_config()
+                    )
                 result[0] = html_result
             except Exception as e:
                 error[0] = str(e)
         
-        # Ejecutar con timeout de 90 segundos
         thread = threading.Thread(target=generate_with_timeout)
         thread.daemon = True
         thread.start()
-        thread.join(90)  # 90 segundos de timeout
+        thread.join(90)
         
         if thread.is_alive():
             # Timeout - el modelo está sobrecargado

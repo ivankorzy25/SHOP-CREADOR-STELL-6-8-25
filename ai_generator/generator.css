@@ -143,6 +143,9 @@ section {
     font-family: 'Courier New', monospace;
     font-size: 14px;
     resize: vertical;
+    min-height: 300px;
+    max-height: 500px;
+    overflow-y: auto;
 }
 
 #prompt-editor:focus {
@@ -188,6 +191,7 @@ section {
     border-radius: var(--border-radius);
     padding: 20px;
     min-height: 400px;
+    max-height: 600px;
     overflow-y: auto;
     background: var(--light-bg);
 }
@@ -204,6 +208,9 @@ section {
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 15px;
     margin-bottom: 20px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 10px;
 }
 
 .product-type-card {
@@ -320,6 +327,9 @@ section {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    max-height: 500px;
+    overflow-y: auto;
+    padding-right: 10px;
 }
 
 .version-item {
@@ -362,6 +372,9 @@ section {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 10px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 10px;
 }
 
 .variable-item {

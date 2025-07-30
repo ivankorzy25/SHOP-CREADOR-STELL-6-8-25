@@ -40,11 +40,11 @@
                 <button class="tab-button active" onclick="openTab('products')">
                     📦 Productos
                 </button>
-                <button class="tab-button" onclick="openTab('ai-generator')">
-                    🤖 Generador IA
-                </button>
                 <button class="tab-button" onclick="openTab('navigation')">
                     🌐 Navegación
+                </button>
+                <button class="tab-button" onclick="openTab('editor')">
+                    🤖 Generador de Descripciones
                 </button>
             </div>
         </div>
@@ -61,18 +61,19 @@
                 </iframe>
             </div>
 
-            <!-- AI Generator Tab -->
-            <div id="ai-generator-tab" class="tab-panel">
-                <iframe src="{{ url_for('static', filename='modules/ai_generator/generator.html') }}" 
+            <!-- Navigation Tab -->
+            <div id="navigation-tab" class="tab-panel">
+                <iframe src="{{ url_for('static', filename='modules/navigation/navigation.html') }}" 
                         frameborder="0" 
                         width="100%" 
                         height="100%">
                 </iframe>
             </div>
 
-            <!-- Navigation Tab -->
-            <div id="navigation-tab" class="tab-panel">
-                <iframe src="{{ url_for('static', filename='modules/navigation/navigation.html') }}" 
+            <!-- Editor Tab -->
+            <div id="editor-tab" class="tab-panel">
+                <iframe id="editor-frame" 
+                        src="{{ url_for('static', filename='modules/ai_generator/editor.html') }}" 
                         frameborder="0" 
                         width="100%" 
                         height="100%">

@@ -26,6 +26,8 @@ from products.product_filters import FilterCriteria
 from navigation.selenium_handler import SeleniumHandler
 from ai_generator.ai_handler import AIHandler
 from ai_generator.prompt_manager import PromptManager
+from ai_generator.editor_interface import EditorInterface
+from ai_generator.prompt_assistant import PromptAssistant
 
 # Configuración de logging
 logging.basicConfig(
@@ -51,6 +53,7 @@ product_manager = ProductManager()
 selenium_handler = SeleniumHandler()
 ai_handler = AIHandler()
 prompt_manager = PromptManager()
+editor_interface = EditorInterface(prompt_manager, ai_handler)
 
 # Estado global de la aplicación
 app_state = {
@@ -463,31 +466,30 @@ def validate_api_key():
         app_state['ai_configured'] = False
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/ai-generator/prompt-versions')
-def get_prompt_versions():
-    """Obtener todas las versiones de prompts"""
+@app.route('/api/ai-generator/versions')
+def get_versions():
+    """Obtener versiones para el editor"""
     try:
         versions = prompt_manager.get_all_versions()
-        return jsonify(versions)
+        return jsonify({'versions': versions})
     except Exception as e:
-        return jsonify([])
+        return jsonify({'versions': []})
 
-@app.route('/api/ai-generator/prompt-version/<version_id>')
-def get_prompt_version(version_id):
+@app.route('/api/ai-generator/version/<version_id>')
+def get_version(version_id):
     """Obtener una versión específica"""
     try:
         if version_id == 'base':
             version = prompt_manager.get_base_prompt()
         else:
             version = prompt_manager.get_version(version_id)
-        
-        return jsonify(version)
+        return jsonify({'version': version})
     except Exception as e:
-        return jsonify({})
+        return jsonify({'version': None})
 
-@app.route('/api/ai-generator/save-prompt-version', methods=['POST'])
-def save_prompt_version():
-    """Guardar nueva versión de prompt"""
+@app.route('/api/ai-generator/save-version', methods=['POST'])
+def save_version():
+    """Guardar nueva versión de prompt (alias para el editor)"""
     try:
         data = request.json
         version = prompt_manager.save_new_version(
@@ -499,36 +501,299 @@ def save_prompt_version():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/ai-generator/generate-preview', methods=['POST'])
-def generate_preview():
-    """Generar preview con producto de ejemplo"""
+@app.route('/api/ai-generator/update-base', methods=['POST'])
+def update_base():
+    """Actualizar el prompt base"""
     try:
         data = request.json
+        prompt_text = data.get('prompt')
+        description = data.get('description', 'Prompt base actualizado desde el editor')
+        
+        updated = prompt_manager.update_base_prompt(prompt_text, description)
+        return jsonify({'success': True, 'version': updated})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+# ============================================================================
+# API DE EDITOR DE DESCRIPCIONES IA
+# ============================================================================
+
+@app.route('/api/ai-generator/extract-pdf', methods=['POST'])
+def extract_pdf_content():
+    """Extrae contenido de un PDF para usar en la generación"""
+    try:
+        data = request.json
+        pdf_url = data.get('pdf_url')
+        
+        if not pdf_url:
+            return jsonify({'success': False, 'error': 'No se proporcionó URL del PDF'})
+        
+        # Importar la función de extracción del módulo premium_generator
+        from ai_generator.premium_generator import extraer_texto_pdf
+        
+        # Extraer texto
+        texto_pdf = extraer_texto_pdf(pdf_url)
+        
+        if texto_pdf:
+            # También extraer datos técnicos si es posible
+            from ai_generator.premium_generator import extraer_datos_tecnicos_del_pdf
+            
+            # Crear un diccionario vacío para los datos actuales
+            info_actual = {}
+            datos_tecnicos = extraer_datos_tecnicos_del_pdf(texto_pdf, info_actual)
+            
+            return jsonify({
+                'success': True,
+                'content': texto_pdf[:5000],  # Limitar para no sobrecargar
+                'technical_data': datos_tecnicos,
+                'full_length': len(texto_pdf)
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'No se pudo extraer contenido del PDF'
+            })
+            
+    except Exception as e:
+        logger.error(f"Error extrayendo PDF: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/ai-generator/test-prompt', methods=['POST'])
+def test_prompt_with_product():
+    """Prueba un prompt temporal con un producto específico"""
+    try:
+        data = request.json
+        product_data = data.get('product')
+        temp_prompt = data.get('prompt')
         api_key = data.get('api_key')
-        prompt = data.get('prompt')
-        product_type = data.get('product_type', 'generador')
+        pdf_content = data.get('pdf_content')
         
-        # Asegurar que el modelo esté inicializado
-        if api_key and not app_state['ai_configured']:
-            ai_handler.initialize_model(api_key)
+        # DEBUG: Imprimir el prompt recibido
+        logger.info("=== DEBUG: test_prompt_with_product ===")
+        logger.info(f"Prompt recibido (primeros 500 chars): {temp_prompt[:500] if temp_prompt else 'NINGUNO'}")
+        logger.info(f"Producto: {product_data.get('nombre') if product_data else 'NINGUNO'}")
+        logger.info("=====================================")
         
-        # Generar preview
-        html = ai_handler.preview_with_example()
+        # Usar el handler principal (ya tiene Gemini 2.0 configurado)
+        if not ai_handler.model:
+            # Si no hay modelo inicializado, intentar inicializar
+            if api_key:
+                ai_handler.initialize_model(api_key)
+            elif not ai_handler.initialize_model(ai_handler.api_key):
+                return jsonify({
+                    'success': False, 
+                    'error': 'No hay modelo de IA configurado. Por favor valida tu API key.'
+                })
+        
+        # Usar el handler principal que ya tiene Gemini 2.0
+        temp_handler = ai_handler
+        
+        # Agregar contenido del PDF si está disponible
+        if pdf_content and product_data:
+            product_data['pdf_content'] = pdf_content
+        
+        # Generar descripción con timeout y manejo de errores mejorado
+        import threading
+        import time
+        
+        result = [None]
+        error = [None]
+        
+        def generate_with_timeout():
+            try:
+                html_result = temp_handler.generate_description(
+                    product_info=product_data,
+                    prompt_template=temp_prompt,
+                    config=get_contact_config()
+                )
+                result[0] = html_result
+            except Exception as e:
+                error[0] = str(e)
+        
+        # Ejecutar con timeout de 90 segundos
+        thread = threading.Thread(target=generate_with_timeout)
+        thread.daemon = True
+        thread.start()
+        thread.join(90)  # 90 segundos de timeout
+        
+        if thread.is_alive():
+            # Timeout - el modelo está sobrecargado
+            logger.warning("Timeout al generar vista previa - modelo sobrecargado")
+            fallback_html = generate_fallback_preview(product_data)
+            return jsonify({
+                'success': True,
+                'html': fallback_html,
+                'processed': True,
+                'warning': 'El modelo de IA está sobrecargado. Se generó una vista previa básica.'
+            })
+        
+        if error[0]:
+            # Error durante la generación
+            logger.error(f"Error generando preview: {error[0]}")
+            if "overloaded" in str(error[0]).lower() or "unavailable" in str(error[0]).lower():
+                fallback_html = generate_fallback_preview(product_data)
+                return jsonify({
+                    'success': True,
+                    'html': fallback_html,
+                    'processed': True,
+                    'warning': 'El modelo de IA está temporalmente no disponible. Se generó una vista previa básica.'
+                })
+            else:
+                return jsonify({'success': False, 'error': str(error[0])})
+        
+        if result[0]:
+            return jsonify({
+                'success': True,
+                'html': result[0],
+                'processed': True
+            })
+        else:
+            # No se obtuvo resultado
+            fallback_html = generate_fallback_preview(product_data)
+            return jsonify({
+                'success': True,
+                'html': fallback_html,
+                'processed': True,
+                'warning': 'No se pudo generar contenido con IA. Se generó una vista previa básica.'
+            })
+        
+    except Exception as e:
+        logger.error(f"Error crítico generando preview: {e}")
+        try:
+            fallback_html = generate_fallback_preview(data.get('product', {}))
+            return jsonify({
+                'success': True,
+                'html': fallback_html,
+                'processed': True,
+                'warning': 'Error en el sistema. Se generó una vista previa básica.'
+            })
+        except:
+            return jsonify({'success': False, 'error': 'Error crítico del sistema'})
+
+@app.route('/api/ai-generator/ai-assistant', methods=['POST'])
+def ai_prompt_assistant():
+    """IA que ayuda a mejorar prompts"""
+    try:
+        data = request.json
+        current_prompt = data.get('prompt')
+        user_request = data.get('request')
+        product_type = data.get('product_type')
+        api_key = data.get('api_key')
+        
+        # Verificar que el modelo esté inicializado
+        if not ai_handler.model:
+            if api_key:
+                ai_handler.initialize_model(api_key)
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'Modelo de IA no inicializado. Por favor valida tu API key primero.',
+                    'explicacion': 'No se pudo procesar tu solicitud porque el modelo de IA no está configurado.'
+                })
+        
+        assistant = PromptAssistant(ai_handler.model)
+        suggestion = assistant.suggest_improvements(
+            current_prompt=current_prompt,
+            user_request=user_request,
+            product_type=product_type
+        )
+        
+        # Log para depuración
+        logger.info(f"[DEBUG] Suggestion type: {type(suggestion)}")
+        logger.info(f"[DEBUG] Suggestion keys: {list(suggestion.keys()) if isinstance(suggestion, dict) else 'Not a dict'}")
+        logger.info(f"[DEBUG] Suggestion content: {suggestion}")
+        
+        # Verificar si suggestion tiene la estructura anidada incorrecta
+        if isinstance(suggestion, dict) and 'suggestion' in suggestion:
+            # Si hay un campo 'suggestion' anidado, extraer su contenido
+            actual_suggestion = suggestion['suggestion']
+        else:
+            actual_suggestion = suggestion
+        
+        # Devolver la estructura correcta que espera el frontend
+        response_data = {
+            'success': True,
+            'explicacion': actual_suggestion.get('explicacion', 'Cambios aplicados al prompt'),
+            'diff': actual_suggestion.get('diff', []),
+            'error': actual_suggestion.get('error', False)
+        }
+        
+        # Log para depuración
+        logger.info(f"[DEBUG] Response data keys: {list(response_data.keys())}")
+        logger.info(f"[DEBUG] Response data: {response_data}")
+        
+        # Asegurarse de que no haya anidamiento
+        return jsonify({
+            'success': True,
+            'explicacion': response_data['explicacion'],
+            'diff': response_data['diff'],
+            'error': response_data['error']
+        })
+    except Exception as e:
+        logger.error(f"Error en asistente IA: {e}")
+        return jsonify({
+            'success': False, 
+            'error': str(e),
+            'explicacion': f'Error al procesar la solicitud: {str(e)}'
+        })
+
+@app.route('/api/ai-generator/compare-versions', methods=['POST'])
+def compare_prompt_versions():
+    """Compara dos versiones de prompts con un producto de ejemplo"""
+    try:
+        data = request.json
+        version1_id = data.get('version1')
+        version2_id = data.get('version2')
+        product_data = data.get('product')
+        
+        # Obtener las versiones
+        version1 = prompt_manager.get_version(version1_id)
+        version2 = prompt_manager.get_version(version2_id)
+        
+        # Usar el handler principal que ya tiene Gemini 2.0 configurado
+        temp_handler = ai_handler
+        
+        html1 = temp_handler.generate_description(
+            product_info=product_data,
+            prompt_template=version1['prompt'],
+            config=get_contact_config()
+        )
+        
+        html2 = temp_handler.generate_description(
+            product_info=product_data,
+            prompt_template=version2['prompt'],
+            config=get_contact_config()
+        )
         
         return jsonify({
             'success': True,
-            'html': html
+            'comparison': {
+                'version1': {'info': version1, 'html': html1},
+                'version2': {'info': version2, 'html': html2}
+            }
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/ai-generator/product-types')
-def get_product_types():
-    """Obtener tipos de productos configurados"""
+@app.route('/api/ai-generator/convert-html-for-stelorder', methods=['POST'])
+def convert_html_for_stelorder():
+    """Convierte HTML para compatibilidad con Stelorder"""
     try:
-        return jsonify(ai_handler.product_types)
+        data = request.json
+        html_content = data.get('html')
+        
+        # Aquí integrarías tu conversor de estilos
+        # Por ahora, retornamos el HTML tal cual
+        # TODO: Integrar conversor-python-final-v41.py
+        
+        converted_html = html_content  # Placeholder
+        
+        return jsonify({
+            'success': True,
+            'converted_html': converted_html
+        })
     except Exception as e:
-        return jsonify({})
+        return jsonify({'success': False, 'error': str(e)})
 
 # ============================================================================
 # FUNCIONES AUXILIARES
@@ -550,6 +815,52 @@ def get_contact_config():
         'telefono_display': '+54 11 3956-3099',
         'website': 'www.generadores.ar'
     }
+
+def generate_fallback_preview(product_data):
+    """Genera una vista previa básica cuando la IA no está disponible"""
+    if not product_data:
+        return '<div class="fallback-preview"><h3>Vista Previa No Disponible</h3><p>No se pudo generar la vista previa.</p></div>'
+    
+    # Extraer información básica del producto
+    nombre = product_data.get('nombre', 'Producto')
+    marca = product_data.get('marca', '')
+    modelo = product_data.get('modelo', '')
+    familia = product_data.get('familia', '')
+    
+    # Generar HTML básico
+    html_content = f"""
+    <div style="max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif; background: #f9f9f9; border-radius: 10px;">
+        <div style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <h2 style="color: #ff6600; margin-bottom: 15px; border-bottom: 2px solid #ff6600; padding-bottom: 10px;">
+                {marca} {modelo}
+            </h2>
+            
+            <div style="background: #fff3e0; padding: 15px; border-left: 4px solid #ff6600; margin: 20px 0;">
+                <h3 style="color: #e65100; margin-top: 0;">📋 Información del Producto</h3>
+                <ul style="margin: 0; padding-left: 20px;">
+                    <li><strong>Producto:</strong> {nombre}</li>
+                    <li><strong>Marca:</strong> {marca}</li>
+                    <li><strong>Modelo:</strong> {modelo}</li>
+                    <li><strong>Familia:</strong> {familia}</li>
+                </ul>
+            </div>
+            
+            <div style="background: #e3f2fd; padding: 15px; border-left: 4px solid #2196f3; margin: 20px 0;">
+                <h3 style="color: #1976d2; margin-top: 0;">⚠️ Vista Previa Básica</h3>
+                <p style="margin: 0;">Esta es una vista previa básica generada sin IA. Para obtener una descripción completa y optimizada, asegúrate de que el modelo de IA esté disponible.</p>
+            </div>
+            
+            <div style="text-align: center; margin-top: 30px; padding: 20px; background: #f5f5f5; border-radius: 5px;">
+                <p style="margin: 0; color: #666; font-size: 14px;">
+                    <strong>📞 Contactanos para más información:</strong><br>
+                    WhatsApp: +54 11 3956-3099 | Email: info@generadores.ar
+                </p>
+            </div>
+        </div>
+    </div>
+    """
+    
+    return html_content
 
 def generate_short_description(product_data):
     """Generar descripción corta sin HTML"""
@@ -618,7 +929,7 @@ def create_directories():
 def open_browser():
     """Abrir navegador automáticamente"""
     time.sleep(2)
-    webbrowser.open('http://localhost:5001')
+    webbrowser.open('http://localhost:5002')
 
 def initialize_ai_model():
     """Inicializar el modelo de IA en segundo plano"""
@@ -654,4 +965,4 @@ if __name__ == '__main__':
     threading.Thread(target=initialize_ai_model, daemon=True).start()
     
     # Iniciar aplicación
-    app.run(debug=False, host='0.0.0.0', port=5001)
+    app.run(debug=False, host='0.0.0.0', port=5002)

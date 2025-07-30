@@ -116,6 +116,52 @@ function handleModuleMessage(data) {
             });
             break;
             
+        case 'product-selected-for-ai':
+        case 'product-selected-for-editor':
+            // Producto seleccionado para usar en el editor/generador
+            console.log('Producto seleccionado para el editor:', data.product);
+            
+            // Cambiar a la pestaña del editor
+            openTab('editor');
+            
+            // Reenviar el mensaje al iframe del editor
+            setTimeout(() => {
+                const editorFrame = document.getElementById('editor-frame');
+                if (editorFrame && editorFrame.contentWindow) {
+                    editorFrame.contentWindow.postMessage({
+                        type: 'product-selected-for-editor', // Usar un tipo de mensaje consistente
+                        product: data.product
+                    }, '*'); // Usar '*' para evitar problemas de origen entre file:// y http://
+                }
+            }, 500);
+            break;
+            
+        case 'request-product-selection':
+            // Solicitud de selección de producto desde el editor
+            console.log('Solicitud de selección de producto desde:', data.from);
+            
+            // Cambiar a la pestaña de productos
+            openTab('products');
+            
+            // Notificar al módulo de productos que active el modo selección
+            setTimeout(() => {
+                const productsFrame = document.getElementById('products-frame');
+                if (productsFrame && productsFrame.contentWindow) {
+                    productsFrame.contentWindow.postMessage({
+                        type: 'activate-selection-mode',
+                        returnTo: data.from || 'editor'
+                    }, window.location.origin);
+                }
+            }, 500);
+            break;
+            
+        case 'change-tab':
+            // Cambiar a una pestaña específica
+            if (data.tab) {
+                openTab(data.tab);
+            }
+            break;
+            
         case 'navigation:ready':
             // Navegador listo
             broadcastToModules({

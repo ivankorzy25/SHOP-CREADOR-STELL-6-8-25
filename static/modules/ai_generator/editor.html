@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor de Descripciones IA</title>
+    <link rel="stylesheet" href="editor.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="editor-container">
+        <!-- Header del Editor -->
+        <div class="editor-header">
+            <h2><i class="fas fa-edit"></i> Editor de Descripciones con IA</h2>
+            <div class="header-actions">
+                <button onclick="saveCurrentWork()" class="btn btn-secondary">
+                    <i class="fas fa-save"></i> Guardar Trabajo
+                </button>
+                <button onclick="showHelp()" class="btn btn-secondary">
+                    <i class="fas fa-question-circle"></i> Ayuda
+                </button>
+            </div>
+        </div>
+
+        <!-- Layout Principal -->
+        <div class="editor-layout">
+            <!-- Panel Izquierdo: Editor y Controles -->
+            <div class="left-panel">
+                <!-- Selector de Version -->
+                <div class="version-selector">
+                    <label>Version del Prompt:</label>
+                    <select id="version-selector" onchange="loadSelectedVersion()">
+                        <option value="">Cargando versiones...</option>
+                    </select>
+                    <button onclick="showVersionHistory()" class="btn btn-small">
+                        <i class="fas fa-history"></i> Historial
+                    </button>
+                </div>
+
+                <!-- Editor de Prompts -->
+                <div class="prompt-editor-section">
+                    <div class="editor-toolbar">
+                        <button onclick="insertVariable()" class="btn btn-small">
+                            <i class="fas fa-code"></i> Variables
+                        </button>
+                        <button onclick="formatPrompt()" class="btn btn-small">
+                            <i class="fas fa-align-left"></i> Formatear
+                        </button>
+                        <button onclick="undoEdit()" class="btn btn-small">
+                            <i class="fas fa-undo"></i> Deshacer
+                        </button>
+                        <button onclick="redoEdit()" class="btn btn-small">
+                            <i class="fas fa-redo"></i> Rehacer
+                        </button>
+                    </div>
+                    <textarea id="prompt-editor" placeholder="Escribe tu prompt aqui..."></textarea>
+                </div>
+
+                <!-- Asistente IA -->
+                <div class="ai-assistant-section">
+                    <h3><i class="fas fa-robot"></i> Asistente IA</h3>
+                    <div class="chat-interface">
+                        <div id="chat-messages" class="chat-messages"></div>
+                        <div class="chat-input">
+                            <input type="text" id="ai-request" placeholder="Pide ayuda a la IA para mejorar tu prompt...">
+                            <button onclick="askAI()" class="btn btn-primary">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel Central: Preview y Producto -->
+            <div class="center-panel">
+                <!-- Selector de Producto -->
+                <div class="product-selector">
+                    <div class="section-header">
+                        <h3><i class="fas fa-box-open"></i> Producto de Trabajo</h3>
+                        <button onclick="useRealProduct()" class="btn btn-secondary">
+                            <i class="fas fa-database"></i> Seleccionar Producto
+                        </button>
+                    </div>
+                    <div id="product-info" class="product-info">
+                        <div class="empty-state">
+                            <p>No hay producto seleccionado.</p>
+                            <small>Haz clic en "Seleccionar Producto" para empezar.</small>
+                        </div>
+                    </div>
+                    <div id="pdf-status" class="mt-2"></div>
+                </div>
+
+                <!-- Preview en Tiempo Real -->
+                <div class="preview-section">
+                    <div class="preview-header">
+                        <h3>Vista Previa</h3>
+                        <div class="preview-actions">
+                            <button onclick="refreshPreview()" class="btn btn-small">
+                                <i class="fas fa-sync"></i> Actualizar
+                            </button>
+                            <button onclick="toggleAutoPreview()" id="auto-preview-btn" class="btn btn-small btn-active">
+                                <i class="fas fa-magic"></i> Auto
+                            </button>
+                        </div>
+                    </div>
+                    <div id="preview-container" class="preview-container">
+                        <div class="preview-placeholder">
+                            <i class="fas fa-eye"></i>
+                            <p>La vista previa aparecera aqui</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel Derecho: Herramientas -->
+            <div class="right-panel">
+                <!-- Comparador de Versiones -->
+                <div class="comparison-section">
+                    <h3><i class="fas fa-code-compare"></i> Comparar Versiones</h3>
+                    <div class="comparison-controls">
+                        <select id="version1" class="version-select">
+                            <option value="">Version 1...</option>
+                        </select>
+                        <select id="version2" class="version-select">
+                            <option value="">Version 2...</option>
+                        </select>
+                        <button onclick="compareVersions()" class="btn btn-primary btn-block">
+                            Comparar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Configuración de IA -->
+                <div class="config-section">
+                    <h3><i class="fas fa-cogs"></i> Configuración de IA</h3>
+                    <div class="config-group">
+                        <label for="api-key">API Key de Google Gemini:</label>
+                        <div class="input-group">
+                            <input type="password" id="api-key" placeholder="Pega tu API key aquí...">
+                            <button onclick="validateApiKey()" class="btn btn-primary">Validar</button>
+                        </div>
+                        <div id="api-status" class="status-indicator"></div>
+                    </div>
+                </div>
+
+                <!-- Acciones Rapidas -->
+                <div class="quick-actions">
+                    <h3><i class="fas fa-bolt"></i> Acciones Rapidas</h3>
+                    <button onclick="testWithProduct()" class="btn btn-block">
+                        <i class="fas fa-flask"></i> Probar con Producto
+                    </button>
+                    <button onclick="saveAsVersion()" class="btn btn-block">
+                        <i class="fas fa-save"></i> Guardar como Version
+                    </button>
+                    <button onclick="updateBasePrompt()" class="btn btn-warning btn-block">
+                        <i class="fas fa-upload"></i> Actualizar Base
+                    </button>
+                    <button onclick="convertToStelorder()" class="btn btn-success btn-block">
+                        <i class="fas fa-exchange-alt"></i> Convertir a Stelorder
+                    </button>
+                </div>
+
+                <!-- Estadisticas -->
+                <div class="stats-section">
+                    <h3><i class="fas fa-chart-bar"></i> Estadisticas</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">Caracteres:</span>
+                            <span id="char-count">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Variables:</span>
+                            <span id="var-count">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Versiones:</span>
+                            <span id="version-count">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Variables -->
+    <div id="variables-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Variables Disponibles</h3>
+                <span class="close" onclick="closeModal('variables-modal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="variables-list">
+                    <div class="variable-item" onclick="insertVar('{nombre}')">
+                        <code>{nombre}</code> - Nombre del producto
+                    </div>
+                    <div class="variable-item" onclick="insertVar('{marca}')">
+                        <code>{marca}</code> - Marca del producto
+                    </div>
+                    <div class="variable-item" onclick="insertVar('{modelo}')">
+                        <code>{modelo}</code> - Modelo del producto
+                    </div>
+                    <div class="variable-item" onclick="insertVar('{familia}')">
+                        <code>{familia}</code> - Familia del producto
+                    </div>
+                    <div class="variable-item" onclick="insertVar('{potencia}')">
+                        <code>{potencia}</code> - Potencia
+                    </div>
+                    <div class="variable-item" onclick="insertVar('{precio}')">
+                        <code>{precio}</code> - Precio del producto
+                    </div>
+                    <div class="variable-item" onclick="insertVar('{caracteristicas}')">
+                        <code>{caracteristicas}</code> - Caracteristicas tecnicas
+                    </div>
+                    <div class="variable-item" onclick="insertVar('{pdf_content}')">
+                        <code>{pdf_content}</code> - Contenido del PDF (si existe)
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Historial de Versiones -->
+    <div id="version-history-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>Historial de Versiones</h3>
+                <span class="close" onclick="closeModal('version-history-modal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="version-list" class="version-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Comparacion -->
+    <div id="comparison-modal" class="modal">
+        <div class="modal-content modal-extra-large">
+            <div class="modal-header">
+                <h3>Comparacion de Versiones</h3>
+                <span class="close" onclick="closeModal('comparison-modal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="comparison-container">
+                    <div class="comparison-side">
+                        <h4 id="version1-title">Version 1</h4>
+                        <div id="version1-content" class="comparison-content"></div>
+                    </div>
+                    <div class="comparison-side">
+                        <h4 id="version2-title">Version 2</h4>
+                        <div id="version2-content" class="comparison-content"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Guardar Version -->
+    <div id="save-version-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Guardar Nueva Version</h3>
+                <span class="close" onclick="closeModal('save-version-modal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Nombre de la version:</label>
+                    <input type="text" id="version-name" placeholder="Ej: Version mejorada con mas detalles">
+                </div>
+                <div class="form-group">
+                    <label>Descripcion:</label>
+                    <textarea id="version-description" rows="3" placeholder="Describe los cambios realizados..."></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button onclick="closeModal('save-version-modal')" class="btn btn-secondary">Cancelar</button>
+                    <button onclick="confirmSaveVersion()" class="btn btn-primary">Guardar Version</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay" style="display: none;">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <script src="editor.js"></script>
+</body>
+</html>

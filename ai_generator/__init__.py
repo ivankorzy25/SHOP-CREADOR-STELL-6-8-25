@@ -13,5 +13,5 @@ __all__ = ['AIHandler', 'PromptManager']
 DEFAULT_CONFIG = {
     'temperature': 0.7,
     'max_tokens': 2000,
-    'model': 'gemini-1.5-flash'
+    'model': 'gemini-2.0-flash-exp'  # Actualizado a Gemini 2.0
 }

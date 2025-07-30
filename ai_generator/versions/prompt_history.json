@@ -1,10 +1,24 @@
-[
-  {
-    "version": "base",
-    "name": "Prompt Base Original",
-    "description": "Versión inicial del prompt para generación de descripciones",
-    "created_at": "2024-06-25T01:34:56.000000",
-    "prompt": "Eres un experto en redacción de descripciones comerciales para productos industriales.\n        \nGenera una descripción profesional y persuasiva para el siguiente producto:\n\nTipo de producto: {product_type}\nInformación del producto:\n- Nombre: {nombre}\n- Marca: {marca}\n- Modelo: {modelo}\n- Potencia: {potencia_kva} KVA\n- Motor: {motor}\n- Características técnicas: {tech_specs}\n\nINSTRUCCIONES ESPECÍFICAS:\n1. La descripción debe ser profesional y orientada a la venta\n2. Destaca los beneficios principales y ventajas competitivas\n3. Menciona aplicaciones típicas del producto ({applications})\n4. Enfócate especialmente en: {focus_areas}\n5. La descripción debe tener entre 150-200 palabras\n6. USA SOLO PÁRRAFOS, no uses listas con viñetas ni bullets\n7. NO uses emojis ni caracteres especiales\n8. Mantén un tono profesional pero cercano y persuasivo\n9. Divide el contenido en 2-3 párrafos bien estructurados\n\nFORMATO DE SALIDA:\n- Solo devuelve el texto de los párrafos\n- Separa cada párrafo con un salto de línea simple\n- No incluyas etiquetas HTML ni formato markdown\n- No uses asteriscos, guiones ni viñetas\n\nRecuerda: El objetivo es convencer al cliente de que este es el producto ideal para sus necesidades.",
-    "is_base": true
-  }
-]
+{
+    "current_version": "base",
+    "api_key": "AIzaSyBYjaWimtWtTk3m_4SjFgLQRWPkiu0suiw",
+    "base_prompt": {
+        "version": "base",
+        "name": "Prompt Base - Sistema Premium",
+        "created_at": "2025-07-29T11:55:06",
+        "updated_at": "2025-07-29T11:55:06",
+        "description": "Prompt base mejorado del sistema para generar descripciones premium con HTML",
+        "is_base": true,
+        "prompt": "Eres un experto en marketing y ventas de equipos industriales. Tu tarea es crear una descripción HTML premium para el siguiente producto:\n\n**Información del producto:**\n- Nombre: {nombre}\n- Marca: {marca}\n- Modelo: {modelo}\n- Familia: {familia}\n- SKU: {sku}\n\n**Especificaciones técnicas disponibles:**\n{especificaciones}\n\n**Instrucciones:**\n1. Genera una descripción HTML completa y profesional\n2. Incluye secciones bien organizadas (características, beneficios, aplicaciones, especificaciones)\n3. Usa HTML semántico con clases CSS descriptivas\n4. Incluye elementos visuales como iconos y tablas\n5. Optimiza para SEO con meta descripciones\n6. Mantén un tono profesional pero persuasivo\n7. Resalta los beneficios y ventajas competitivas\n8. Incluye llamadas a la acción (CTA) efectivas\n\n**Formato de salida:**\nDevuelve únicamente el código HTML, comenzando con <div class=\"descripcion-premium\"> y terminando con </div>. No incluyas explicaciones adicionales."
+    },
+    "versions": [
+        {
+            "version": "v2_20250729_115506",
+            "name": "Versión 2.0 - Generador Premium HTML",
+            "created_at": "2025-07-29T11:55:06",
+            "updated_at": "2025-07-29T11:55:06",
+            "description": "Versión mejorada con generación premium de HTML, extracción de PDF y contenido optimizado para SEO",
+            "is_base": false,
+            "prompt": "Eres un experto en marketing y ventas de equipos industriales. Tu tarea es crear una descripción HTML premium para el siguiente producto:\n\n**Información del producto:**\n- Nombre: {nombre}\n- Marca: {marca}\n- Modelo: {modelo}\n- Familia: {familia}\n- SKU: {sku}\n\n**Especificaciones técnicas disponibles:**\n{especificaciones}\n\n**Instrucciones:**\n1. Genera una descripción HTML completa y profesional\n2. Incluye secciones bien organizadas (características, beneficios, aplicaciones, especificaciones)\n3. Usa HTML semántico con clases CSS descriptivas\n4. Incluye elementos visuales como iconos y tablas\n5. Optimiza para SEO con meta descripciones\n6. Mantén un tono profesional pero persuasivo\n7. Resalta los beneficios y ventajas competitivas\n8. Incluye llamadas a la acción (CTA) efectivas\n\n**Formato de salida:**\nDevuelve únicamente el código HTML, comenzando con <div class=\"descripcion-premium\"> y terminando con </div>. No incluyas explicaciones adicionales."
+        }
+    ]
+}

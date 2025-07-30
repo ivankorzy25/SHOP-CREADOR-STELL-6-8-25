@@ -1,0 +1,750 @@
+/* editor.css - Estilos para el Editor de Descripciones IA */
+
+/* Variables globales */
+:root {
+    --primary-color: #ff6600;
+    --primary-hover: #e55500;
+    --secondary-color: #6c757d;
+    --success-color: #28a745;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+    --info-color: #17a2b8;
+    --dark-color: #2c3e50;
+    --light-color: #f8f9fa;
+    --text-color: #333;
+    --border-color: #dee2e6;
+    --shadow: 0 2px 4px rgba(0,0,0,0.1);
+    --radius: 5px;
+}
+
+/* Reset y estilos base */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--light-color);
+    color: var(--text-color);
+    line-height: 1.6;
+}
+
+/* Contenedor principal */
+.editor-container {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Header del editor */
+.editor-header {
+    background: white;
+    padding: 15px 20px;
+    border-bottom: 2px solid var(--primary-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: var(--shadow);
+}
+
+.editor-header h2 {
+    color: var(--dark-color);
+    font-size: 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.editor-header h2 i {
+    color: var(--primary-color);
+}
+
+.header-actions {
+    display: flex;
+    gap: 10px;
+}
+
+/* Layout principal */
+.editor-layout {
+    flex: 1;
+    display: flex;
+    gap: 20px;
+    padding: 20px;
+    overflow: hidden;
+    background-color: #f5f5f5;
+}
+
+/* Paneles */
+.left-panel,
+.center-panel,
+.right-panel {
+    background: white;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.left-panel {
+    flex: 1.5;
+    min-width: 350px;
+}
+
+.center-panel {
+    flex: 2;
+    min-width: 400px;
+    min-height: 0; /* Importante para que el scroll funcione */
+}
+
+.right-panel {
+    flex: 1;
+    min-width: 300px;
+}
+
+/* Selector de version */
+.version-selector {
+    padding: 15px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.version-selector label {
+    font-weight: 600;
+    color: var(--dark-color);
+}
+
+.version-selector select {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    font-size: 14px;
+}
+
+/* Editor de prompts */
+.prompt-editor-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 15px;
+    min-height: 0; /* Cambiado para permitir que el contenedor se encoja */
+    overflow: hidden; /* Añadido para contener el overflow */
+}
+
+.editor-toolbar {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0; /* Evita que la toolbar se encoja */
+}
+
+#prompt-editor {
+    flex: 1;
+    width: 100%;
+    padding: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    resize: none;
+    transition: border-color 0.3s;
+    overflow-y: auto; /* Añadido scroll vertical */
+    min-height: 200px; /* Altura mínima para usabilidad */
+}
+
+#prompt-editor:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+/* Asistente IA */
+.ai-assistant-section {
+    padding: 15px;
+    border-top: 1px solid var(--border-color);
+    height: 300px;
+    display: flex;
+    flex-direction: column;
+}
+
+.ai-assistant-section h3 {
+    color: var(--dark-color);
+    font-size: 18px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ai-assistant-section h3 i {
+    color: var(--primary-color);
+}
+
+.chat-interface {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.chat-messages {
+    flex: 1;
+    padding: 10px;
+    overflow-y: auto;
+    background-color: #fafafa;
+}
+
+.chat-message {
+    margin-bottom: 10px;
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    max-width: 80%;
+}
+
+.chat-message.user {
+    background-color: var(--primary-color);
+    color: white;
+    margin-left: auto;
+}
+
+.chat-message.ai {
+    background-color: #e9ecef;
+    color: var(--text-color);
+}
+
+.chat-input {
+    display: flex;
+    padding: 10px;
+    border-top: 1px solid var(--border-color);
+    background-color: white;
+}
+
+.chat-input input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius) 0 0 var(--radius);
+    font-size: 14px;
+}
+
+.chat-input button {
+    border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+/* Selector de producto */
+.product-selector {
+    padding: 15px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.product-selector h3 {
+    color: var(--dark-color);
+    font-size: 18px;
+    margin-bottom: 10px;
+}
+
+.product-options {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.product-options select {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+}
+
+.product-info {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.product-info .info-item {
+    margin-bottom: 8px;
+    display: flex;
+    gap: 10px;
+}
+
+.product-info .info-label {
+    font-weight: 600;
+    color: var(--dark-color);
+    min-width: 100px;
+}
+
+/* Vista previa */
+.preview-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 15px;
+    min-height: 0; /* Importante para que flex funcione correctamente */
+}
+
+.preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.preview-header h3 {
+    color: var(--dark-color);
+    font-size: 18px;
+}
+
+.preview-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.preview-container {
+    flex: 1;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    background-color: white;
+    overflow-y: auto; /* Revertido a auto para que solo aparezca cuando sea necesario */
+    padding: 20px;
+    word-wrap: break-word;
+    min-height: 0; /* Añadido para permitir que el contenedor se encoja y active el scroll */
+    max-height: calc(100vh - 400px); /* Altura máxima para forzar el scroll */
+}
+
+.preview-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #999;
+}
+
+.preview-placeholder i {
+    font-size: 48px;
+    margin-bottom: 10px;
+}
+
+/* Comparador de versiones */
+.comparison-section {
+    padding: 15px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.comparison-section h3 {
+    color: var(--dark-color);
+    font-size: 18px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.comparison-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.version-select {
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    font-size: 14px;
+}
+
+/* Acciones rapidas */
+.quick-actions {
+    padding: 15px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.quick-actions h3 {
+    color: var(--dark-color);
+    font-size: 18px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.quick-actions h3 i {
+    color: var(--primary-color);
+}
+
+/* Estadisticas */
+.stats-section {
+    padding: 15px;
+}
+
+.stats-section h3 {
+    color: var(--dark-color);
+    font-size: 18px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+}
+
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background-color: #f8f9fa;
+    border-radius: var(--radius);
+}
+
+.stat-label {
+    font-weight: 600;
+    color: var(--dark-color);
+}
+
+.stat-item span:last-child {
+    color: var(--primary-color);
+    font-weight: bold;
+}
+
+/* Botones */
+.btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: var(--primary-hover);
+}
+
+.btn-secondary {
+    background-color: var(--secondary-color);
+    color: white;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+}
+
+.btn-success {
+    background-color: var(--success-color);
+    color: white;
+}
+
+.btn-success:hover {
+    background-color: #218838;
+}
+
+.btn-warning {
+    background-color: var(--warning-color);
+    color: #212529;
+}
+
+.btn-warning:hover {
+    background-color: #e0a800;
+}
+
+.btn-small {
+    padding: 5px 10px;
+    font-size: 12px;
+}
+
+.btn-block {
+    width: 100%;
+    justify-content: center;
+}
+
+.btn-active {
+    background-color: var(--success-color);
+    color: white;
+}
+
+/* Modales */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 5% auto;
+    padding: 0;
+    border-radius: var(--radius);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-large {
+    max-width: 800px;
+}
+
+.modal-extra-large {
+    max-width: 1200px;
+}
+
+.modal-header {
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    color: var(--dark-color);
+    margin: 0;
+}
+
+.close {
+    font-size: 28px;
+    font-weight: bold;
+    color: #999;
+    cursor: pointer;
+    transition: color 0.3s;
+}
+
+.close:hover {
+    color: var(--danger-color);
+}
+
+.modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+/* Formularios */
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 5px;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    font-size: 14px;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+/* Variables list */
+.variables-list {
+    display: grid;
+    gap: 10px;
+}
+
+.variable-item {
+    padding: 10px 15px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.variable-item:hover {
+    background-color: var(--primary-color);
+    color: white;
+    transform: translateX(5px);
+}
+
+.variable-item code {
+    font-weight: bold;
+    font-size: 14px;
+}
+
+/* Version list */
+.version-list {
+    display: grid;
+    gap: 10px;
+}
+
+.version-item {
+    padding: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.version-item:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(255,102,0,0.2);
+}
+
+.version-item.active {
+    border-color: var(--primary-color);
+    background-color: rgba(255,102,0,0.1);
+}
+
+.version-name {
+    font-weight: bold;
+    color: var(--dark-color);
+    margin-bottom: 5px;
+}
+
+.version-meta {
+    font-size: 12px;
+    color: #666;
+}
+
+/* Comparison container */
+.comparison-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    height: 500px;
+}
+
+.comparison-side {
+    display: flex;
+    flex-direction: column;
+}
+
+.comparison-side h4 {
+    color: var(--dark-color);
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--primary-color);
+}
+
+.comparison-content {
+    flex: 1;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 15px;
+    overflow-y: auto;
+    background-color: #f8f9fa;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 14px;
+}
+
+/* Loading overlay */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+}
+
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    .editor-layout {
+        flex-direction: column;
+    }
+    
+    .left-panel,
+    .center-panel,
+    .right-panel {
+        min-width: auto;
+        width: 100%;
+        max-height: 400px;
+    }
+}
+
+/* Scrollbar personalizada */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}

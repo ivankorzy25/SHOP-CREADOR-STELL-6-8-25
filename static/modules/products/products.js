@@ -31,6 +31,80 @@ window.addEventListener('message', async (event) => {
         console.log('Mensaje recibido: Conectar DB');
         await connectDatabase();
     }
+    
+    // Manejo del modo de selección para el editor
+    if (event.data && event.data.type === 'activate-selection-mode') {
+        const returnTo = event.data.returnTo || 'ai_generator';
+        
+        // Mostrar mensaje informativo
+        const message = document.createElement('div');
+        message.className = 'selection-mode-banner';
+        message.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #ff6600;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            z-index: 1000;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        `;
+        message.innerHTML = `
+            <div class="banner-content">
+                <span class="banner-icon">👆</span>
+                <span class="banner-text">Modo selección activo - Selecciona un producto para usar en ${
+                    returnTo === 'ai_generator' ? 'el Generador IA' : 
+                    returnTo === 'editor' ? 'el Editor de Descripciones' : 
+                    'otro módulo'
+                }</span>
+                <button class="btn btn-sm" style="margin-left: 20px;" onclick="this.parentElement.parentElement.remove()">Cancelar</button>
+            </div>
+        `;
+        document.body.insertBefore(message, document.body.firstChild);
+        
+        // Cambiar comportamiento de los botones "IA"
+        document.querySelectorAll('.btn-primary').forEach(button => {
+            if (button.innerHTML.includes('IA')) {
+                const originalOnclick = button.onclick;
+                button.onclick = function(e) {
+                    e.preventDefault();
+                    const row = this.closest('tr');
+                    const cells = row.cells;
+                    const productData = {
+                        id: cells[1].textContent, // SKU
+                        nombre: cells[2].textContent, // Descripción
+                        marca: cells[3].textContent, // Marca
+                        modelo: moduleState.products.find(p => p.SKU === cells[1].textContent)?.Modelo || '',
+                        familia: cells[4].textContent, // Familia
+                        descripcion: cells[2].textContent,
+                        url: moduleState.products.find(p => p.SKU === cells[1].textContent)?.URL_PDF || ''
+                    };
+                    
+                    // Enviar mensaje al padre según el destino
+                    const messageType = returnTo === 'editor' ? 
+                        'product-selected-for-editor' : 
+                        'product-selected-for-ai';
+                        
+                    window.parent.postMessage({
+                        type: messageType,
+                        product: productData
+                    }, window.location.origin);
+                    
+                    // Limpiar modo selección
+                    message.remove();
+                    
+                    // Restaurar comportamiento original
+                    document.querySelectorAll('.btn-primary').forEach(btn => {
+                        if (btn.innerHTML.includes('IA')) {
+                            btn.onclick = originalOnclick;
+                        }
+                    });
+                };
+            }
+        });
+    }
 });
 
 // Funciones de Base de Datos
@@ -329,6 +403,9 @@ function createProductRow(product) {
                 <button onclick="viewProductDetails('${product.SKU}')" class="btn btn-small">
                     👁️ Ver
                 </button>
+                <button onclick="sendProductToAIGenerator(${JSON.stringify(product).replace(/"/g, '&quot;')})" class="btn btn-primary btn-small" title="Usar en Generador IA">
+                    <i class="fas fa-robot"></i> IA
+                </button>
             </div>
         </td>
     `;
@@ -364,6 +441,11 @@ function sortTable(column) {
 function toggleProductSelection(sku, selected) {
     if (selected) {
         moduleState.selectedProducts.add(sku);
+        // Emitir evento cuando se selecciona un producto
+        const product = moduleState.filteredProducts.find(p => p.SKU === sku);
+        if (product) {
+            notifyProductSelection(product);
+        }
     } else {
         moduleState.selectedProducts.delete(sku);
     }
@@ -374,6 +456,62 @@ function toggleProductSelection(sku, selected) {
     // Habilitar/deshabilitar botón de procesar
     document.getElementById('process-button').disabled = 
         moduleState.selectedProducts.size === 0;
+}
+
+// Emitir evento con el producto seleccionado
+function notifyProductSelection(product) {
+    const event = new CustomEvent('product-selected-for-ai', {
+        detail: {
+            product: product,
+            timestamp: new Date().toISOString()
+        }
+    });
+    window.parent.postMessage({
+        type: 'product-selected-for-ai',
+        product: product
+    }, '*');
+}
+
+// Agregar después de las funciones de selección existentes
+function sendProductToAIGenerator(productData) {
+    // Enviar mensaje al parent (index.html)
+    if (window.parent !== window) {
+        window.parent.postMessage({
+            type: 'product-selected-for-ai',
+            product: productData,
+            source: 'products'
+        }, '*');
+        
+        console.log('Producto enviado al generador IA:', productData);
+        
+        // Mostrar notificación
+        mostrarNotificacion('Producto enviado al Generador IA', 'success');
+    }
+}
+
+// Función para mostrar notificaciones
+function mostrarNotificacion(mensaje, tipo = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `notification ${tipo}`;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 25px;
+        background: ${tipo === 'success' ? '#28a745' : tipo === 'error' ? '#dc3545' : '#17a2b8'};
+        color: white;
+        border-radius: 5px;
+        z-index: 10000;
+        animation: slideIn 0.3s ease-out;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    `;
+    notification.textContent = mensaje;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.remove();
+    }, 3000);
 }
 
 function toggleSelectAll() {

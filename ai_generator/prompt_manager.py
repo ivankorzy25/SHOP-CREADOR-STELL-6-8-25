@@ -34,15 +34,69 @@ class PromptManager:
         if self.history_file.exists():
             try:
                 with open(self.history_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except:
+                    data = json.load(f)
+                    
+                    # Si el archivo tiene la estructura nueva con current_version, base_prompt, versions
+                    if isinstance(data, dict) and 'versions' in data:
+                        # Extraer las versiones y agregar el base_prompt si existe
+                        versions = data.get('versions', [])
+                        if 'base_prompt' in data and isinstance(data['base_prompt'], dict):
+                            # Asegurar que el base_prompt esté al principio
+                            base_exists = any(v.get('version') == 'base' for v in versions if isinstance(v, dict))
+                            if not base_exists:
+                                versions.insert(0, data['base_prompt'])
+                        return versions
+                    # Si es una lista directa (formato antiguo)
+                    elif isinstance(data, list):
+                        return data
+                    else:
+                        return []
+            except Exception as e:
+                print(f"Error cargando historial: {e}")
                 return []
         return []
     
     def _save_history(self):
         """Guarda el historial de versiones"""
-        with open(self.history_file, 'w', encoding='utf-8') as f:
-            json.dump(self.history, f, indent=2, ensure_ascii=False)
+        # Mantener la estructura completa del archivo
+        try:
+            # Cargar estructura existente si existe
+            if self.history_file.exists():
+                with open(self.history_file, 'r', encoding='utf-8') as f:
+                    full_data = json.load(f)
+                    if isinstance(full_data, dict):
+                        # Actualizar solo las versiones manteniendo el resto
+                        full_data['versions'] = self.history
+                        # Actualizar base_prompt si existe en el historial
+                        for v in self.history:
+                            if isinstance(v, dict) and v.get('is_base'):
+                                full_data['base_prompt'] = v
+                                break
+                    else:
+                        # Si era formato antiguo, crear estructura nueva
+                        full_data = {
+                            "current_version": "base",
+                            "api_key": "AIzaSyBYjaWimtWtTk3m_4SjFgLQRWPkiu0suiw",
+                            "base_prompt": next((v for v in self.history if isinstance(v, dict) and v.get('is_base')), {}),
+                            "versions": self.history
+                        }
+            else:
+                # Archivo nuevo
+                full_data = {
+                    "current_version": "base",
+                    "api_key": "AIzaSyBYjaWimtWtTk3m_4SjFgLQRWPkiu0suiw",
+                    "base_prompt": next((v for v in self.history if isinstance(v, dict) and v.get('is_base')), {}),
+                    "versions": self.history
+                }
+            
+            with open(self.history_file, 'w', encoding='utf-8') as f:
+                json.dump(full_data, f, indent=2, ensure_ascii=False)
+                
+        except Exception as e:
+            print(f"Error guardando historial: {e}")
+            # Fallback: guardar solo la lista
+            with open(self.history_file, 'w', encoding='utf-8') as f:
+                json.dump(self.history, f, indent=2, ensure_ascii=False)
     
     def _ensure_base_prompt(self):
         """Asegura que existe un prompt base"""
@@ -281,3 +335,30 @@ Recuerda: El objetivo es convencer al cliente de que este es el producto ideal p
             print(f"Error importando versión: {e}")
         
         return None
+    
+    def create_auto_version(self, prompt_text: str, base_version_id: str = None) -> Dict:
+        """Crea una versión automática con timestamp"""
+        timestamp = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
+        name = f"Versión Automática - {timestamp}"
+        description = "Guardado automático desde el editor"
+        
+        if base_version_id:
+            base_version = self.get_version(base_version_id)
+            if base_version:
+                description = f"Basado en: {base_version['name']}"
+        
+        return self.save_new_version(prompt_text, name, description)
+    
+    def get_versions_for_comparison(self) -> List[Dict]:
+        """Obtiene versiones formateadas para comparación"""
+        versions = self.get_all_versions()
+        return [
+            {
+                'id': v['version'],
+                'name': v['name'],
+                'date': v.get('created_at', v.get('updated_at', '')),
+                'description': v.get('description', ''),
+                'is_base': v.get('is_base', False)
+            }
+            for v in versions
+        ]

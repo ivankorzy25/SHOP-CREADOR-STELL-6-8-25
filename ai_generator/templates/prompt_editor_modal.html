@@ -1,0 +1,92 @@
+<!-- prompt_editor_modal.html - Modal para el editor de prompts -->
+<div id="prompt-editor-modal" class="modal" style="display: none;">
+    <div class="modal-content modal-extra-large">
+        <div class="modal-header">
+            <h3><i class="fas fa-edit"></i> Editor Avanzado de Prompts</h3>
+            <span class="close" onclick="closeModal('prompt-editor-modal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="editor-grid">
+                <!-- Panel izquierdo: Editor -->
+                <div class="editor-panel">
+                    <h4>Editor de Prompt</h4>
+                    <textarea id="modal-prompt-editor" class="prompt-textarea" rows="20"></textarea>
+                    <div class="editor-stats">
+                        <span>Caracteres: <span id="modal-char-count">0</span></span>
+                        <span>Variables: <span id="modal-var-count">0</span></span>
+                    </div>
+                </div>
+                
+                <!-- Panel derecho: Vista previa -->
+                <div class="preview-panel">
+                    <h4>Vista Previa</h4>
+                    <div id="modal-preview-container" class="preview-content">
+                        <p style="text-align: center; color: #999;">
+                            <i class="fas fa-eye"></i><br>
+                            Selecciona un producto para ver la vista previa
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-actions">
+                <button onclick="applyPromptChanges()" class="btn btn-primary">
+                    <i class="fas fa-check"></i> Aplicar Cambios
+                </button>
+                <button onclick="closeModal('prompt-editor-modal')" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.editor-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    height: 500px;
+}
+
+.editor-panel, .preview-panel {
+    display: flex;
+    flex-direction: column;
+}
+
+.editor-panel h4, .preview-panel h4 {
+    margin-bottom: 10px;
+    color: #2c3e50;
+}
+
+.prompt-textarea {
+    flex: 1;
+    padding: 15px;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 14px;
+    resize: none;
+}
+
+.preview-content {
+    flex: 1;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    padding: 15px;
+    overflow-y: auto;
+    background-color: #f8f9fa;
+}
+
+.editor-stats {
+    margin-top: 10px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    color: #666;
+}
+
+.modal-extra-large {
+    max-width: 1200px !important;
+}
+</style>

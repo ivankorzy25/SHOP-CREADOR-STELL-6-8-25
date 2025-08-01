@@ -139,7 +139,7 @@ def main():
         print("1. Edita config/database_config.json con tus credenciales MySQL")
         print("2. Copia los archivos de módulos a static/modules/")
         print("3. Ejecuta: python main.py")
-        print("4. Abre tu navegador en: http://localhost:5000")
+        print("4. Abre tu navegador en: http://localhost:5002")
         
         print("\n💡 TIPS:")
         print("- Obtén tu API key de Google en: https://makersuite.google.com/app/apikey")

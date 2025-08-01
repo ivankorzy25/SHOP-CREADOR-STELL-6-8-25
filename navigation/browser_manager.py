@@ -11,8 +11,9 @@ from typing import Optional, Dict, Any
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support.wait import WebDriverWait
 from selenium.common.exceptions import SessionNotCreatedException, WebDriverException
+from webdriver_manager.chrome import ChromeDriverManager
 
 class BrowserManager:
     """Gestiona la instancia del navegador Chrome"""
@@ -93,8 +94,139 @@ class BrowserManager:
             options.add_argument("--aggressive-cache-discard")
             options.add_argument("--disable-background-mode")
             
-            # Inicializar driver
-            service = Service()
+            # Inicializar driver usando ChromeDriverManager
+            print("📥 Descargando/verificando ChromeDriver...")
+            
+            # Limpiar el cache corrupto de win32 si existe
+            import shutil
+            import platform
+            
+            wdm_path = Path.home() / ".wdm"
+            
+            # Limpiar cache de win32 si existe
+            win32_cache = wdm_path / "drivers" / "chromedriver" / "win32"
+            if win32_cache.exists():
+                try:
+                    shutil.rmtree(win32_cache)
+                    print("🧹 Cache de ChromeDriver win32 eliminado")
+                except:
+                    pass
+            
+            # También limpiar cualquier versión con arquitectura incorrecta
+            chrome_cache = wdm_path / "drivers" / "chromedriver"
+            if chrome_cache.exists():
+                for item in chrome_cache.iterdir():
+                    if item.is_dir() and "win32" in item.name.lower():
+                        try:
+                            shutil.rmtree(item)
+                            print(f"🧹 Eliminado cache incorrecto: {item.name}")
+                        except:
+                            pass
+            
+            # Usar ChromeDriverManager - versión simplificada
+            try:
+                # Simplemente usar ChromeDriverManager estándar
+                # La versión más reciente debería detectar automáticamente win64
+                chromedriver_path = ChromeDriverManager().install()
+                
+                # Verificar si descargó la versión incorrecta
+                if platform.system() == "Windows" and "win32" in chromedriver_path:
+                    print("⚠️ Se detectó versión win32, forzando descarga de win64...")
+                    
+                    # Eliminar el driver incorrecto
+                    try:
+                        driver_dir = Path(chromedriver_path).parent
+                        if driver_dir.exists():
+                            import shutil
+                            shutil.rmtree(driver_dir)
+                    except:
+                        pass
+                    
+                    # Intentar descargar directamente la versión correcta
+                    import requests
+                    import zipfile
+                    
+                    # Obtener la última versión de Chrome
+                    try:
+                        # Obtener versión de Chrome instalado
+                        chrome_version = None
+                        chrome_paths = [
+                            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
+                        ]
+                        
+                        for chrome_path in chrome_paths:
+                            if os.path.exists(chrome_path):
+                                import win32api
+                                info = win32api.GetFileVersionInfo(chrome_path, "\\")
+                                ms = info['FileVersionMS']
+                                ls = info['FileVersionLS']
+                                chrome_version = f"{win32api.HIWORD(ms)}.{win32api.LOWORD(ms)}.{win32api.HIWORD(ls)}.{win32api.LOWORD(ls)}"
+                                break
+                        
+                        if not chrome_version:
+                            # Si no podemos obtener la versión, usar la última estable
+                            response = requests.get("https://chromedriver.storage.googleapis.com/LATEST_RELEASE")
+                            chrome_version = response.text.strip()
+                        
+                        # Descargar ChromeDriver para Windows 64-bit
+                        major_version = chrome_version.split('.')[0]
+                        
+                        # Para Chrome 115+, usar el nuevo endpoint
+                        if int(major_version) >= 115:
+                            # Obtener la versión exacta del driver
+                            version_url = f"https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_{major_version}"
+                            response = requests.get(version_url)
+                            driver_version = response.text.strip()
+                            
+                            # Descargar el driver
+                            download_url = f"https://storage.googleapis.com/chrome-for-testing-public/{driver_version}/win64/chromedriver-win64.zip"
+                        else:
+                            # Para versiones anteriores
+                            download_url = f"https://chromedriver.storage.googleapis.com/{chrome_version}/chromedriver_win64.zip"
+                        
+                        print(f"📥 Descargando ChromeDriver {driver_version if 'driver_version' in locals() else chrome_version} para Windows 64-bit...")
+                        
+                        # Descargar y extraer
+                        driver_zip_path = Path("drivers") / "chromedriver.zip"
+                        driver_zip_path.parent.mkdir(exist_ok=True)
+                        
+                        response = requests.get(download_url)
+                        with open(driver_zip_path, 'wb') as f:
+                            f.write(response.content)
+                        
+                        # Extraer
+                        with zipfile.ZipFile(driver_zip_path, 'r') as zip_ref:
+                            zip_ref.extractall(driver_zip_path.parent)
+                        
+                        # Buscar el ejecutable
+                        for root, dirs, files in os.walk(driver_zip_path.parent):
+                            for file in files:
+                                if file == "chromedriver.exe":
+                                    chromedriver_path = os.path.join(root, file)
+                                    break
+                        
+                        # Limpiar
+                        driver_zip_path.unlink()
+                        
+                        print(f"✅ ChromeDriver descargado manualmente: {chromedriver_path}")
+                        
+                    except Exception as manual_error:
+                        print(f"❌ Error en descarga manual: {manual_error}")
+                        # Como último recurso, usar webdriver-manager nuevamente
+                        chromedriver_path = ChromeDriverManager().install()
+                
+            except Exception as e:
+                print(f"❌ Error descargando ChromeDriver: {e}")
+                raise Exception(f"No se pudo descargar ChromeDriver: {e}")
+            
+            print(f"✅ ChromeDriver instalado en: {chromedriver_path}")
+            
+            # Verificar que el archivo existe y es ejecutable
+            if not Path(chromedriver_path).exists():
+                raise Exception(f"ChromeDriver no se descargó correctamente en: {chromedriver_path}")
+            
+            service = Service(chromedriver_path)
             self.driver = webdriver.Chrome(service=service, options=options)
             
             # Configurar timeouts

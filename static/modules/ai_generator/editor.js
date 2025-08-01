@@ -461,21 +461,17 @@ async function askAI() {
     const request = document.getElementById('ai-request').value.trim();
     if (!request) return;
 
-    // Validar que tenemos API key y producto
     if (!editorState.isApiValid) {
-        showNotification('Por favor valida tu API key primero', 'error');
+        addChatMessage('Por favor, valida tu API key en la sección de Configuración de IA antes de usar el asistente.', 'ai');
         return;
     }
-
     if (!editorState.currentProduct) {
-        addChatMessage('ℹ️ Para generar una vista previa, necesitas seleccionar un producto. Te sugiero cargar un producto de muestra desde la sección "Producto de Trabajo" en el centro de la pantalla.', 'ai');
-        hideLoading();
+        addChatMessage('Para poder ayudarte a mejorar el prompt, primero selecciona un producto de ejemplo o uno real.', 'ai');
         return;
     }
 
     const editor = document.getElementById('prompt-editor');
     const currentPrompt = editor.value;
-    const productType = editorState.currentProduct ? (editorState.currentProduct.familia || 'general') : 'general';
 
     addChatMessage(request, 'user');
     document.getElementById('ai-request').value = '';
@@ -488,70 +484,34 @@ async function askAI() {
             body: JSON.stringify({
                 prompt: currentPrompt,
                 request: request,
-                product_type: productType,
+                product_type: editorState.currentProduct.familia || 'general',
                 api_key: editorState.apiKey
             })
         });
 
         const data = await response.json();
-
-        if (data.error) {
-            addChatMessage(data.explicacion || 'Lo siento, ocurrió un error.', 'ai');
-            hideLoading();
-            return;
-        }
-
-        // Mostrar la explicación de la IA
-        if (data.explicacion) {
+        
+        if (data.success && data.prompt_modificado) {
             addChatMessage(data.explicacion, 'ai');
-        }
-
-        // Aplicar los cambios del diff
-        if (data.diff && data.diff.length > 0) {
-            let lines = currentPrompt.split('\n');
-            let changesApplied = 0;
-
-            data.diff.forEach(change => {
-                if (change.type === 'replace_line' && change.line_number > 0 && change.line_number <= lines.length) {
-                    lines[change.line_number - 1] = change.new_content;
-                    changesApplied++;
-                }
-            });
-
-            if (changesApplied > 0) {
-                const newPrompt = lines.join('\n');
-                editor.value = newPrompt;
-                editorState.isDirty = true;
-                editorState.tempPrompt = newPrompt;
-                localStorage.setItem('editor_last_prompt', newPrompt);
-                updateStats();
-
-                // Disparar un evento de input para que cualquier listener reaccione
-                editor.dispatchEvent(new Event('input', { bubbles: true }));
-
-                addChatMessage(`✅ He aplicado ${changesApplied} cambio${changesApplied > 1 ? 's' : ''} al prompt. Generando nueva vista previa...`, 'ai');
-                
-                // Regenerar automáticamente la vista previa
-                hideLoading();
-                refreshPreview();
-            } else {
-                addChatMessage('⚠️ No pude aplicar los cambios sugeridos. El texto buscado no coincide exactamente con el prompt actual. Puedes aplicar los cambios manualmente.', 'ai');
-                
-                // Mostrar los cambios sugeridos en el chat para aplicación manual
-                data.diff.forEach((change, index) => {
-                    addChatMessage(`🔄 Cambio ${index + 1}:\nBuscar: "${change.search}"\nReemplazar con: "${change.replace}"`, 'ai');
-                });
-                
-                hideLoading();
-            }
+            
+            // Reemplazar el prompt completo en el editor
+            editor.value = data.prompt_modificado;
+            
+            // Disparar el evento 'input' para que la UI se actualice
+            editor.dispatchEvent(new Event('input', { bubbles: true }));
+            
+            addChatMessage('✅ Prompt actualizado. Refrescando la vista previa...', 'ai');
+            
+            // La vista previa se actualizará automáticamente gracias al evento 'input'
+            
         } else {
-            addChatMessage('ℹ️ No hay cambios específicos para aplicar en esta sugerencia.', 'ai');
-            hideLoading();
+            addChatMessage(data.explicacion || data.error || 'Lo siento, ocurrió un error inesperado.', 'ai');
         }
 
     } catch (error) {
         console.error('Error:', error);
-        addChatMessage('Error al conectar con el asistente IA: ' + error.message, 'ai');
+        addChatMessage('Error de conexión con el asistente IA: ' + error.message, 'ai');
+    } finally {
         hideLoading();
     }
 }

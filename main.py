@@ -528,15 +528,15 @@ def extract_pdf_content():
         if not pdf_url:
             return jsonify({'success': False, 'error': 'No se proporcionó URL del PDF'})
         
-        # Importar la función de extracción del módulo premium_generator
-        from ai_generator.premium_generator import extraer_texto_pdf
+        # Importar la función de extracción del módulo premium_generator_v2
+        from ai_generator.premium_generator_v2 import extraer_texto_pdf
         
         # Extraer texto
         texto_pdf = extraer_texto_pdf(pdf_url)
         
         if texto_pdf:
             # También extraer datos técnicos si es posible
-            from ai_generator.premium_generator import extraer_datos_tecnicos_del_pdf
+            from ai_generator.premium_generator_v2 import extraer_datos_tecnicos_del_pdf
             
             # Crear un diccionario vacío para los datos actuales
             info_actual = {}
@@ -680,66 +680,40 @@ def ai_prompt_assistant():
     """IA que ayuda a mejorar prompts"""
     try:
         data = request.json
-        current_prompt = data.get('prompt')
-        user_request = data.get('request')
-        product_type = data.get('product_type')
         api_key = data.get('api_key')
         
-        # Verificar que el modelo esté inicializado
+        # Inicializar modelo si es necesario
         if not ai_handler.model:
-            if api_key:
-                ai_handler.initialize_model(api_key)
+            if api_key and ai_handler.initialize_model(api_key):
+                app_state['ai_configured'] = True
             else:
                 return jsonify({
                     'success': False,
-                    'error': 'Modelo de IA no inicializado. Por favor valida tu API key primero.',
-                    'explicacion': 'No se pudo procesar tu solicitud porque el modelo de IA no está configurado.'
+                    'error': 'Modelo de IA no inicializado. Valida tu API key.'
                 })
-        
+
         assistant = PromptAssistant(ai_handler.model)
         suggestion = assistant.suggest_improvements(
-            current_prompt=current_prompt,
-            user_request=user_request,
-            product_type=product_type
+            current_prompt=data.get('prompt'),
+            user_request=data.get('request'),
+            product_type=data.get('product_type')
         )
         
-        # Log para depuración
-        logger.info(f"[DEBUG] Suggestion type: {type(suggestion)}")
-        logger.info(f"[DEBUG] Suggestion keys: {list(suggestion.keys()) if isinstance(suggestion, dict) else 'Not a dict'}")
-        logger.info(f"[DEBUG] Suggestion content: {suggestion}")
+        # El asistente ahora devuelve todo lo que necesitamos
+        suggestion['success'] = not suggestion.get('error', False)
         
-        # Verificar si suggestion tiene la estructura anidada incorrecta
-        if isinstance(suggestion, dict) and 'suggestion' in suggestion:
-            # Si hay un campo 'suggestion' anidado, extraer su contenido
-            actual_suggestion = suggestion['suggestion']
-        else:
-            actual_suggestion = suggestion
+        logger.info(f"[DEBUG] Respuesta del asistente IA enviada al frontend: {suggestion}")
         
-        # Devolver la estructura correcta que espera el frontend
-        response_data = {
-            'success': True,
-            'explicacion': actual_suggestion.get('explicacion', 'Cambios aplicados al prompt'),
-            'diff': actual_suggestion.get('diff', []),
-            'error': actual_suggestion.get('error', False)
-        }
+        return jsonify(suggestion)
         
-        # Log para depuración
-        logger.info(f"[DEBUG] Response data keys: {list(response_data.keys())}")
-        logger.info(f"[DEBUG] Response data: {response_data}")
-        
-        # Asegurarse de que no haya anidamiento
-        return jsonify({
-            'success': True,
-            'explicacion': response_data['explicacion'],
-            'diff': response_data['diff'],
-            'error': response_data['error']
-        })
     except Exception as e:
-        logger.error(f"Error en asistente IA: {e}")
+        logger.error(f"Error en el endpoint del asistente IA: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return jsonify({
             'success': False, 
             'error': str(e),
-            'explicacion': f'Error al procesar la solicitud: {str(e)}'
+            'explicacion': 'Ocurrió un error inesperado en el servidor.'
         })
 
 @app.route('/api/ai-generator/compare-versions', methods=['POST'])

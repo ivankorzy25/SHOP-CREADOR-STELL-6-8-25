@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Módulo para la generación de descripciones HTML premium de productos.
-Versión 2.1 - Adaptado a la nueva plantilla, con extracción de datos por IA y más íconos.
+Versión 2.2 - Con estilos inline exactos
 """
 import re
 import requests
@@ -211,11 +211,13 @@ def extraer_texto_pdf(pdf_url, print_callback=print):
         response = requests.get(pdf_url, timeout=10)
         response.raise_for_status()
         
-        # Usar PyMuPDF (fitz) que es más robusto
-        with fitz.open(stream=response.content, filetype="pdf") as doc:
-            texto_completo = ""
-            for page in doc:
-                texto_completo += page.get_text()
+        # Usar PyMuPDF que es más robusto
+        pdf_document = fitz.open(stream=response.content, filetype="pdf")
+        texto_completo = ""
+        for page_num in range(pdf_document.page_count):
+            page = pdf_document[page_num]
+            texto_completo += page.get_text()
+        pdf_document.close()
         
         if texto_completo.strip():
             print_callback(f"✅ Texto extraído correctamente de {pdf_url}")
@@ -305,12 +307,11 @@ def validar_caracteristicas_producto(info, texto_pdf):
     return caracteristicas
 
 # ============================================================================
-# FUNCIONES DE GENERACIÓN DE HTML (ACTUALIZADAS)
+# FUNCIONES DE GENERACIÓN DE HTML CON ESTILOS INLINE
 # ============================================================================
 
-def generar_hero_section(info, caracteristicas):
-    """Genera la sección hero dinámica."""
-    # Definir valores no deseados al inicio para que esté disponible en toda la función
+def generar_titulo_producto(info, caracteristicas):
+    """Genera el título del producto."""
     valores_no_deseados = ['N/D', 'n/d', 'N/A', 'n/a', 'None', 'null', '']
     
     # Primero intentar usar el título generado por IA
@@ -325,283 +326,303 @@ def generar_hero_section(info, caracteristicas):
         if marca and marca not in valores_no_deseados:
             titulo = marca
         else:
-            titulo = "Generador"
+            titulo = "GRUPO ELECTROGENO"
             
         if modelo and modelo not in valores_no_deseados:
             titulo += f" {modelo}"
         elif potencia and potencia not in valores_no_deseados:
-            # Si no hay modelo, usar la potencia como identificador
-            titulo += f" {potencia} KVA"
-            
-        # Agregar tipo de combustible al título si es relevante
-        tipo_combustible = caracteristicas.get('tipo_combustible', 'diesel')
-        if tipo_combustible != 'diesel':  # Solo mostrar si no es diesel (el estándar)
-            titulo += f" a {tipo_combustible.capitalize()}"
+            titulo += f" {potencia}"
             
         # Si el título es muy genérico, usar el nombre completo del producto
-        if titulo == "Generador" or len(titulo.split()) < 2:
+        if titulo == "GRUPO ELECTROGENO" or len(titulo.split()) < 2:
             nombre_producto = info.get('nombre', '')
             if nombre_producto and nombre_producto not in valores_no_deseados:
                 titulo = nombre_producto
 
-    # Construir subtítulo con características destacadas
-    tags = []
-    
-    # Agregar potencia al subtítulo si no está en el título
-    potencia = info.get('potencia_kva', '').strip()
-    if potencia and potencia not in valores_no_deseados and potencia not in titulo:
-        tags.append(f"{potencia} KVA")
-    
-    # Características especiales
-    if caracteristicas.get('tiene_tta'):
-        tags.append("TRANSFERENCIA AUTOMATICA")
-    if caracteristicas.get('tiene_cabina'):
-        tags.append("CABINADO INSONORIZADO")
-    if caracteristicas.get('es_inverter'):
-        tags.append("TECNOLOGIA INVERTER")
-        
-    # Si hay características especiales de IA
-    caracteristicas_especiales = info.get('caracteristicas_especiales', [])
-    for feature in caracteristicas_especiales[:2]:  # Máximo 2 características adicionales
-        if feature and len(feature) < 30:  # Solo características cortas
-            tags.append(eliminar_tildes_y_especiales(feature.upper()))
+    return eliminar_tildes_y_especiales(titulo).upper()
 
-    # Usar subtítulo de IA si está disponible y no hay tags
+def generar_subtitulo_producto(info, caracteristicas):
+    """Genera el subtítulo del producto."""
     subtitulo_ia = info.get('marketing_content', {}).get('subtitulo_p', '')
-    if subtitulo_ia and not tags:
-        subtitulo = eliminar_tildes_y_especiales(subtitulo_ia)
-    else:
-        subtitulo = " | ".join(tags) if tags else "Solucion energetica profesional de ultima generacion"
+    if subtitulo_ia:
+        return eliminar_tildes_y_especiales(subtitulo_ia)
+    return "Solucion energetica de ultima generacion para su proyecto"
 
-    # Limpiar tildes del título y subtítulo
-    titulo = eliminar_tildes_y_especiales(titulo)
-    subtitulo = eliminar_tildes_y_especiales(subtitulo)
-
+def generar_hero_section_inline(titulo, subtitulo):
+    """Genera el header hero con estilos inline."""
     return f'''
-    <div class="hero-header animate-fade-in">
-        <h1>{titulo}</h1>
-        <p>{subtitulo}</p>
-    </div>
+        <!-- HEADER HERO SECTION -->
+        <div style="background: linear-gradient(135deg, #ff6600 0%, #ff8833 100%); padding: 40px 30px; text-align: center; border-radius: 0 0 20px 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+            <h1 style="color: white; font-size: 36px; margin: 0 0 15px 0; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">
+                {titulo}
+            </h1>
+            <p style="color: white; font-size: 18px; margin: 0; opacity: 0.95; font-weight: 300;">
+                {subtitulo}
+            </p>
+        </div>
     '''
 
-def generar_info_cards_section(info, caracteristicas):
-    """Genera las tarjetas de información principal."""
+def generar_info_cards_inline(info, caracteristicas):
+    """Genera las tarjetas de información con estilos inline."""
     tipo_combustible = caracteristicas.get('tipo_combustible', 'diesel')
     icono_combustible = ICONOS_SVG.get(tipo_combustible, ICONOS_SVG['diesel'])
     
+    # Obtener valores limpios
+    potencia_kva = info.get('potencia_kva', '').strip()
+    potencia_kw = info.get('potencia_kw', '').strip()
+    motor = info.get('modelo_motor', info.get('motor', '')).strip()
+    consumo = info.get('consumo_combustible_75', info.get('consumo', '')).strip()
+    
     return f'''
-    <div class="info-cards">
-        <!-- Card Potencia -->
-        <div class="info-card">
-            <div class="icon-wrapper">{ICONOS_SVG['potencia']}</div>
-            <div class="info-content">
-                <h4>POTENCIA</h4>
-                <div class="value">{info.get('potencia_kva', 'N/D')}</div>
-                <div class="sub-value">{info.get('potencia_kw', '')}</div>
+        <!-- ESPECIFICACIONES PRINCIPALES -->
+        <div style="padding: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+            
+            <!-- Card Potencia -->
+            <div class="card-hover" style="background: #f8f9fa; border-radius: 12px; padding: 25px; border-left: 4px solid #ff6600; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <div style="width: 48px; height: 48px; background: #fff3e0; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="#ff6600"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
+                    </div>
+                    <div>
+                        <p style="margin: 0; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Potencia Maxima</p>
+                        <p style="margin: 5px 0 0 0; font-size: 24px; font-weight: 700; color: #ff6600;">
+                            {potencia_kva if potencia_kva else 'N/D'} KVA
+                        </p>
+                        {f'<p style="margin: 0; font-size: 14px; color: #999;">{potencia_kw} KW</p>' if potencia_kw else ''}
+                    </div>
+                </div>
             </div>
-        </div>
-        
-        <!-- Card Motor -->
-        <div class="info-card">
-            <div class="icon-wrapper">{ICONOS_SVG['motor']}</div>
-            <div class="info-content">
-                <h4>MOTOR</h4>
-                <div class="value" style="font-size: 20px;">{info.get('marca_motor', '')} {info.get('modelo_motor', info.get('motor', 'N/D'))}</div>
-                <div class="sub-value">{info.get('cilindrada_cc', '')} cc</div>
+            
+            <!-- Card Motor -->
+            <div class="card-hover" style="background: #f8f9fa; border-radius: 12px; padding: 25px; border-left: 4px solid #ff6600; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <div style="width: 48px; height: 48px; background: #fff3e0; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="#ff6600"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/></svg>
+                    </div>
+                    <div>
+                        <p style="margin: 0; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Motor</p>
+                        <p style="margin: 5px 0 0 0; font-size: 18px; font-weight: 600; color: #333;">
+                            {motor if motor else 'N/D'}
+                        </p>
+                    </div>
+                </div>
             </div>
-        </div>
-        
-        <!-- Card Combustible -->
-        <div class="info-card">
-            <div class="icon-wrapper">{icono_combustible}</div>
-            <div class="info-content">
-                <h4>COMBUSTIBLE</h4>
-                <div class="value" style="font-size: 20px;">{tipo_combustible.upper()}</div>
-                <div class="sub-value">{info.get('consumo_combustible_75', 'N/D')} L/h al 75%</div>
+            
+            <!-- Card Combustible/Consumo -->
+            <div class="card-hover" style="background: #f8f9fa; border-radius: 12px; padding: 25px; border-left: 4px solid #ff6600; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <div style="width: 48px; height: 48px; background: #fff3e0; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                        {icono_combustible.replace('width="28"', 'width="24"').replace('height="28"', 'height="24"')}
+                    </div>
+                    <div>
+                        <p style="margin: 0; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Tipo de Combustible</p>
+                        <p style="margin: 5px 0 0 0; font-size: 18px; font-weight: 600; color: #333; text-transform: capitalize;">
+                            {tipo_combustible.upper()}
+                        </p>
+                        {f'<p style="margin: 0; font-size: 14px; color: #999;">Consumo: {consumo}</p>' if consumo else ''}
+                    </div>
+                </div>
             </div>
+            
         </div>
-    </div>
     '''
 
-def generar_specs_table_section(info):
-    """Genera la tabla de especificaciones técnicas."""
-    specs_map = {
-        'potencia_kva': ('Potencia KVA', 'potencia'),
-        'potencia_kw': ('Potencia KW', 'potencia'),
-        'voltaje': ('Voltaje', 'voltaje'),
-        'frecuencia': ('Frecuencia', 'frecuencia'),
-        'marca_motor': ('Marca Motor', 'motor'),
-        'modelo_motor': ('Modelo Motor', 'motor'),
-        'cilindrada_cc': ('Cilindrada (cc)', 'cilindrada'),
-        'consumo_combustible_75': ('Consumo (75%)', 'consumo'),
-        'nivel_sonoro_dba_7m': ('Nivel Sonoro (7m)', 'ruido'),
-        'dimensiones_mm': ('Dimensiones (mm)', 'dimensiones'),
-        'peso_kg': ('Peso (kg)', 'peso'),
-    }
-    
-    # Generar filas HTML
-    rows_html = ""
-    for key, (label, icon_key) in specs_map.items():
-        value = info.get(key)
-        if value:
-            rows_html += f'''
-            <tr>
-                <td class="spec-label">{ICONOS_SVG.get(icon_key, '')} {label}</td>
-                <td class="spec-value">{value}</td>
-            </tr>
-            '''
-    
-    # Add additional specs from AI
-    for spec in info.get('specs_adicionales', []):
-        rows_html += f'''
-        <tr>
-            <td class="spec-label">{ICONOS_SVG.get('specs', '')} {spec.get('label', '')}</td>
-            <td class="spec-value">{spec.get('value', '')}</td>
-        </tr>
-        '''
-        
-    return f'''
-    <div class="specs-section">
-        <div class="specs-header">{ICONOS_SVG['specs']} <h2>ESPECIFICACIONES TÉCNICAS COMPLETAS</h2></div>
-        <div class="specs-table">
-            <table>
-                <thead><tr><th style="width: 40%;">CARACTERÍSTICA</th><th>ESPECIFICACIÓN</th></tr></thead>
-                <tbody>{rows_html}</tbody>
-            </table>
-        </div>
-    </div>
-    '''
-
-def generar_feature_badges_section(caracteristicas):
-    """Genera los badges de características especiales."""
-    badges_html = ""
-    
-    if caracteristicas.get('tiene_tta'):
-        badges_html += f'''
-        <div class="feature-badge">
-            {ICONOS_SVG['lightning']}
-            <span>{eliminar_tildes_y_especiales("TABLERO DE TRANSFERENCIA AUTOMATICA INCLUIDO")}</span>
-        </div>
-        '''
-    
-    if caracteristicas.get('tiene_cabina'):
-        badges_html += f'''
-        <div class="feature-badge green">
-            {ICONOS_SVG['shield']}
-            <span>{eliminar_tildes_y_especiales("CABINA INSONORIZADA DE ALUMINIO")}</span>
-        </div>
-        '''
-    
-    if caracteristicas.get('es_inverter'):
-        badges_html += f'''
-        <div class="feature-badge purple">
-            {ICONOS_SVG['tools']}
-            <span>{eliminar_tildes_y_especiales("TECNOLOGIA INVERTER - MAXIMA EFICIENCIA")}</span>
-        </div>
-        '''
-    
-    return f'<div class="feature-badges">{badges_html}</div>' if badges_html else ''
-
-def generar_speech_sections(info, marketing_content):
-    """Genera las secciones de speech de ventas usando contenido de IA."""
-    
-    # Usar contenido de IA si está disponible, de lo contrario, un mensaje genérico.
-    titulo_h1 = marketing_content.get('titulo_h1', info.get('nombre', ''))
-    subtitulo_p = marketing_content.get('subtitulo_p', 'Una solucion robusta y confiable para sus necesidades energeticas.')
-    puntos_clave_li = marketing_content.get('puntos_clave_li', [])
-    descripcion_detallada_p = marketing_content.get('descripcion_detallada_p', [])
-    aplicaciones_ideales_li = marketing_content.get('aplicaciones_ideales_li', [])
-
-    # Función interna para generar listas con iconos dinámicos
-    def generar_lista_con_iconos(items):
-        if not items:
-            return ""
-        items_html = ""
-        for item in items:
-            cleaned_item = eliminar_tildes_y_especiales(item)
-            icono_svg = obtener_icono_para_item(cleaned_item)
-            items_html += f"<li>{icono_svg}<span>{cleaned_item}</span></li>"
-        return f"<ul>{items_html}</ul>"
-
-    # Generar HTML para cada sección
-    puntos_clave_html = generar_lista_con_iconos(puntos_clave_li)
-    aplicaciones_html = generar_lista_con_iconos(aplicaciones_ideales_li)
-    descripcion_html = "".join(f"<p>{eliminar_tildes_y_especiales(p)}</p>" for p in descripcion_detallada_p)
-
-    sections = [
-        {'icon': 'potencia', 'title': 'PUNTOS CLAVE', 'content': puntos_clave_html},
-        {'icon': 'shield', 'title': 'DESCRIPCION DETALLADA', 'content': descripcion_html},
-        {'icon': 'tools', 'title': 'APLICACIONES IDEALES', 'content': aplicaciones_html}
+def generar_specs_table_inline(info):
+    """Genera la tabla de especificaciones con estilos inline."""
+    # Mapeo de especificaciones a mostrar
+    specs_display = [
+        ('modelo', 'Modelo', ICONOS_SVG.get('motor', '')),
+        ('potencia_kva', 'Potencia Stand By', ICONOS_SVG.get('potencia', '')),
+        ('potencia_prime', 'Potencia Prime', ICONOS_SVG.get('potencia', '')),
+        ('voltaje', 'Voltaje', ICONOS_SVG.get('voltaje', '')),
+        ('frecuencia', 'Frecuencia', ICONOS_SVG.get('frecuencia', '')),
+        ('motor', 'Motor', ICONOS_SVG.get('motor', '')),
+        ('alternador', 'Alternador', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#ff6600"><path d="M12 2l-5.5 9h11z M12 22l5.5-9h-11z M3.5 9L12 12l-3.5 6z M20.5 9L12 12l3.5 6z"/></svg>'),
+        ('consumo', 'Consumo al 100%', ICONOS_SVG.get('consumo', '')),
+        ('dimensiones_mm', 'Dimensiones (LxAxH)', ICONOS_SVG.get('dimensiones', '')),
+        ('peso_kg', 'Peso', ICONOS_SVG.get('peso', ''))
     ]
     
+    # Generar filas
+    rows_html = ""
+    row_count = 0
+    for key, label, icon in specs_display:
+        value = info.get(key, '')
+        if value and str(value).strip():
+            bg_color = '#f8f9fa' if row_count % 2 == 0 else 'white'
+            rows_html += f'''
+                    <tr class="spec-row" style="background: {bg_color}; border-bottom: 1px solid #eee;">
+                        <td style="padding: 15px 20px; display: flex; align-items: center; gap: 10px;">
+                            <div style="width: 20px; height: 20px; opacity: 0.6;">{icon.replace('fill="#D32F2F"', 'fill="#ff6600"')}</div>
+                            <span style="color: #666; font-weight: 500;">{label}</span>
+                        </td>
+                        <td style="padding: 15px 20px; font-weight: 600; color: #333;">{value}</td>
+                    </tr>'''
+            row_count += 1
+    
+    return f'''
+        <!-- TABLA DE ESPECIFICACIONES TECNICAS -->
+        <div style="background: #FFC107; margin: 30px; padding: 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+            <h2 style="color: #333; font-size: 28px; margin: 0 0 25px 0; text-align: center; font-weight: 700;">
+                ESPECIFICACIONES TECNICAS COMPLETAS
+            </h2>
+            
+            <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr style="background: #333; color: white;">
+                        <td style="padding: 15px 20px; font-weight: 600; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">Caracteristica</td>
+                        <td style="padding: 15px 20px; font-weight: 600; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">Especificacion</td>
+                    </tr>
+                    {rows_html}
+                </table>
+            </div>
+        </div>
+    '''
+
+def generar_feature_badge_inline(caracteristicas):
+    """Genera el badge de característica especial con estilos inline."""
+    if caracteristicas.get('tiene_tta'):
+        return f'''
+        <!-- CARACTERISTICA ESPECIAL -->
+        <div class="special-feature" style="margin: 30px; background: linear-gradient(135deg, #2196f3, #42a5f5); color: white; padding: 20px 30px; border-radius: 12px; display: flex; align-items: center; gap: 15px; box-shadow: 0 4px 15px rgba(33,150,243,0.3); transition: all 0.3s ease;">
+            <div style="width: 32px; height: 32px;">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="white"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+            </div>
+            <span style="font-size: 20px; font-weight: 600;">TABLERO AUTOMATICO INCLUIDO</span>
+        </div>
+        '''
+    return ''
+
+def generar_content_sections_inline(info, marketing_content):
+    """Genera las secciones de contenido con estilos inline."""
+    # Usar contenido de marketing si está disponible
+    sections = []
+    
+    if marketing_content:
+        if marketing_content.get('puntos_clave_li'):
+            sections.append({
+                'title': 'POTENCIA Y RENDIMIENTO SUPERIOR',
+                'content': eliminar_tildes_y_especiales('. '.join(marketing_content['puntos_clave_li'][:2]))
+            })
+        if marketing_content.get('descripcion_detallada_p'):
+            sections.append({
+                'title': 'EFICIENCIA Y ECONOMIA OPERATIVA',
+                'content': eliminar_tildes_y_especiales(marketing_content['descripcion_detallada_p'][0])
+            })
+    
+    # Contenido por defecto si no hay marketing content
+    if not sections:
+        sections = [
+            {
+                'title': 'POTENCIA Y RENDIMIENTO SUPERIOR',
+                'content': f"Este equipo con {info.get('potencia_kva', 'alta')} KVA de potencia maxima esta disenado para brindar energia confiable y constante. Su motor {info.get('motor', 'de alta calidad')} garantiza un rendimiento optimo en las condiciones mas exigentes, ofreciendo la tranquilidad que su proyecto necesita."
+            },
+            {
+                'title': 'EFICIENCIA Y ECONOMIA OPERATIVA',
+                'content': f"Con un consumo optimizado, este generador ofrece una excelente economia operativa. El sistema de alimentacion garantiza combustion limpia y menores emisiones, ideal para aplicaciones que requieren sostenibilidad ambiental."
+            },
+            {
+                'title': 'CONFIABILIDAD GARANTIZADA',
+                'content': "Equipado con alternador de alta calidad y excitacion automatica AVR, este generador asegura un suministro electrico estable y sin fluctuaciones. El panel de control digital y las protecciones de motor integradas garantizan la seguridad de sus equipos conectados."
+            }
+        ]
+    
+    # Agregar aplicaciones si están disponibles
+    if marketing_content.get('aplicaciones_ideales_li'):
+        apps_html = '<ul style="list-style: none; padding: 0; margin: 10px 0;">'
+        for app in marketing_content['aplicaciones_ideales_li']:
+            apps_html += f'''
+                    <li style="padding: 8px 0; display: flex; align-items: start; gap: 10px;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="#ff6600" style="min-width: 20px; margin-top: 2px;"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
+                        <span>{eliminar_tildes_y_especiales(app)}</span>
+                    </li>'''
+        apps_html += '</ul>'
+        
+        sections.append({
+            'title': 'APLICACIONES VERSATILES',
+            'content': apps_html
+        })
+    
+    # Generar HTML
     html = ""
     for section in sections:
-        if section['content']:
-            html += f'''
-            <div class="speech-section">
-                <div class="speech-header">
-                    <div class="speech-icon">
-                        {ICONOS_SVG.get(section['icon'], '')}
-                    </div>
-                    <h3>{eliminar_tildes_y_especiales(section['title'])}</h3>
-                </div>
+        html += f'''
+        <!-- SECCIONES DE CONTENIDO -->
+        <div class="content-section" style="margin: 30px; padding: 30px; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border-left: 4px solid #FFC107;">
+            <h3 style="color: #D32F2F; font-size: 24px; margin: 0 0 15px 0; font-weight: 700;">
+                {section['title']}
+            </h3>
+            <div style="font-size: 16px; line-height: 1.8; color: #555;">
                 {section['content']}
             </div>
-            '''
+        </div>'''
     
     return html
 
-def generar_benefits_section():
-    """Genera la sección de beneficios."""
-    benefits = [
-        {
-            'icon': 'shield',
-            'title': 'GARANTIA OFICIAL',
-            'desc': 'Respaldo total del fabricante con garantia extendida'
-        },
-        {
-            'icon': 'quality',
-            'title': 'CALIDAD CERTIFICADA',
-            'desc': 'Cumple con todas las normas internacionales'
-        },
-        {
-            'icon': 'tools',
-            'title': 'SERVICIO TECNICO',
-            'desc': 'Red nacional de servicio y repuestos originales'
-        },
-        {
-            'icon': 'money',
-            'title': 'FINANCIACION',
-            'desc': 'Multiples opciones de pago y financiacion a medida'
-        }
-    ]
-    
-    cards_html = ""
-    for benefit in benefits:
-        cards_html += f'''
-        <div class="benefit-card">
-            <div class="benefit-icon">
-                {ICONOS_SVG.get(benefit['icon'], '')}
+def generar_benefits_section_inline():
+    """Genera la sección de beneficios con estilos inline."""
+    return '''
+        <!-- VENTAJAS COMPETITIVAS -->
+        <div style="background: #f8f9fa; padding: 40px 30px; margin-top: 40px;">
+            <h2 style="text-align: center; font-size: 32px; color: #333; margin-bottom: 40px; font-weight: 700;">
+                POR QUE ELEGIR ESTE EQUIPO
+            </h2>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 25px;">
+                <div class="benefit-card" style="background: white; border-radius: 12px; padding: 30px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border-top: 3px solid #ff6600;">
+                    <div class="icon-circle" style="width: 70px; height: 70px; background: #fff3e0; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="#ff6600"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+                    </div>
+                    <h4 style="margin: 0 0 10px 0; color: #333; font-size: 18px; font-weight: 700;">GARANTIA OFICIAL</h4>
+                    <p style="margin: 0; color: #666; font-size: 14px; line-height: 1.6;">Respaldo total del fabricante con servicio post-venta garantizado</p>
+                </div>
+                
+                <div class="benefit-card" style="background: white; border-radius: 12px; padding: 30px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border-top: 3px solid #ff6600;">
+                    <div class="icon-circle" style="width: 70px; height: 70px; background: #fff3e0; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="#ff6600"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                    </div>
+                    <h4 style="margin: 0 0 10px 0; color: #333; font-size: 18px; font-weight: 700;">CALIDAD CERTIFICADA</h4>
+                    <p style="margin: 0; color: #666; font-size: 14px; line-height: 1.6;">Productos que cumplen con las mas altas normas internacionales</p>
+                </div>
+                
+                <div class="benefit-card" style="background: white; border-radius: 12px; padding: 30px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border-top: 3px solid #ff6600;">
+                    <div class="icon-circle" style="width: 70px; height: 70px; background: #fff3e0; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="#ff6600"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>
+                    </div>
+                    <h4 style="margin: 0 0 10px 0; color: #333; font-size: 18px; font-weight: 700;">SERVICIO TECNICO</h4>
+                    <p style="margin: 0; color: #666; font-size: 14px; line-height: 1.6;">Red nacional de servicio tecnico especializado y repuestos originales</p>
+                </div>
+                
+                <div class="benefit-card" style="background: white; border-radius: 12px; padding: 30px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border-top: 3px solid #ff6600;">
+                    <div class="icon-circle" style="width: 70px; height: 70px; background: #fff3e0; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="#ff6600"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>
+                    </div>
+                    <h4 style="margin: 0 0 10px 0; color: #333; font-size: 18px; font-weight: 700;">FINANCIACION</h4>
+                    <p style="margin: 0; color: #666; font-size: 14px; line-height: 1.6;">Multiples opciones de pago y planes de financiacion a su medida</p>
+                </div>
             </div>
-            <h4>{eliminar_tildes_y_especiales(benefit['title'])}</h4>
-            <p>{eliminar_tildes_y_especiales(benefit['desc'])}</p>
         </div>
-        '''
-    
-    return f'''
-    <div class="benefits-section">
-        <div class="benefits-header">
-            <h3>POR QUE ELEGIRNOS</h3>
-        </div>
-        <div class="benefits-grid">
-            {cards_html}
-        </div>
-    </div>
     '''
 
-def generar_cta_section(info, config):
-    """Genera la sección de Call-to-Action."""
+def generar_cta_section_inline(info, config):
+    """Genera la sección CTA con estilos inline."""
+    # Construir descripción detallada del producto
+    marca = eliminar_tildes_y_especiales(info.get('marca', ''))
+    modelo = eliminar_tildes_y_especiales(info.get('modelo', ''))
+    potencia_kva = info.get('potencia_kva', '')
     nombre_producto = eliminar_tildes_y_especiales(info.get('nombre', 'este producto'))
+    
+    # Crear una descripción más específica del producto
+    descripcion_producto = ""
+    if marca and marca not in ['N/D', 'n/d', 'N/A', 'n/a', 'None', 'null', '']:
+        descripcion_producto = f"Grupo Electrogeno {marca}"
+        if modelo and modelo not in ['N/D', 'n/d', 'N/A', 'n/a', 'None', 'null', '']:
+            descripcion_producto += f" {modelo}"
+        if potencia_kva and str(potencia_kva) not in ['N/D', 'n/d', 'N/A', 'n/a', 'None', 'null', '']:
+            descripcion_producto += f" de {potencia_kva} KVA"
+    else:
+        descripcion_producto = nombre_producto
+    
     whatsapp = config.get('whatsapp', '541139563099')
     email = config.get('email', 'info@generadores.ar')
     pdf_url = info.get('pdf_url', '#')
@@ -609,77 +630,92 @@ def generar_cta_section(info, config):
     if pdf_url and not pdf_url.startswith('http'):
         pdf_url = f"https://storage.googleapis.com/fichas_tecnicas/{pdf_url}"
     
-    whatsapp_msg = f"Hola,%20vengo%20de%20ver%20el%20{nombre_producto.replace(' ', '%20')}%20en%20la%20tienda%20y%20quisiera%20mas%20informacion"
-    email_subject = f"Consulta%20-%20{nombre_producto.replace(' ', '%20')}"
-    email_body = f"Hola,%0A%0AQuisiera%20solicitar%20una%20cotizacion%20para%20el%20producto:%20{nombre_producto.replace(' ', '%20')}.%0A%0AGracias."
+    # Mensaje de WhatsApp más elaborado y específico
+    whatsapp_msg = f"Hola,%20estoy%20interesado%20en%20el%20{descripcion_producto.replace(' ', '%20')}.%20Vi%20este%20producto%20en%20su%20tienda%20online%20y%20me%20gustaria%20recibir%20mas%20informacion%20sobre%20precio,%20disponibilidad%20y%20condiciones%20de%20entrega.%20Muchas%20gracias."
+    
+    # Cuerpo del email más detallado
+    email_body = f"""Hola,%0A%0AEstoy%20interesado%20en%20el%20{descripcion_producto.replace(' ', '%20')}%20que%20vi%20en%20su%20tienda%20online.%0A%0ACaracteristicas%20del%20producto%20consultado:%0A-%20Marca:%20{marca.replace(' ', '%20')}%0A-%20Modelo:%20{modelo.replace(' ', '%20')}%0A-%20Potencia:%20{str(potencia_kva).replace(' ', '%20')}%20KVA%0A%0AMe%20gustaria%20recibir%20informacion%20sobre:%0A-%20Precio%20y%20disponibilidad%0A-%20Condiciones%20de%20pago%20y%20financiacion%0A-%20Plazo%20de%20entrega%0A-%20Garantia%20y%20servicio%20tecnico%0A%0AMis%20datos%20de%20contacto%20son:%0ANombre:%20%0ATelefono:%20%0AEmpresa:%20%0ALocalidad:%20%0A%0AQuedo%20a%20la%20espera%20de%20su%20respuesta.%0A%0ASaludos%20cordiales"""
     
     return f'''
-    <div class="cta-section">
-        <h3>LISTO PARA POTENCIAR TU OPERACION?</h3>
-        <p>No espere mas. Contacte a nuestros especialistas y asegure su energia hoy mismo.</p>
-        
-        <div class="cta-buttons">
-            <a href="https://wa.me/{whatsapp}?text={whatsapp_msg}" 
-               target="_blank"
-               class="cta-button whatsapp">
-                {ICONOS_SVG['whatsapp']}
-                <span>CONSULTAR POR WHATSAPP</span>
-            </a>
+        <!-- CALL TO ACTION -->
+        <div style="background: linear-gradient(135deg, #1a1a1a 0%, #333333 100%); padding: 50px 30px; text-align: center;">
+            <h2 style="color: #FFC107; font-size: 32px; margin-bottom: 15px; font-weight: 700; text-transform: uppercase;">
+                CONSULTE AHORA MISMO
+            </h2>
+            <p style="color: white; font-size: 18px; margin-bottom: 35px; opacity: 0.9;">
+                Nuestros especialistas estan listos para asesorarlo
+            </p>
             
-            <a href="{pdf_url}" 
-               target="_blank"
-               class="cta-button pdf">
-                {ICONOS_SVG['pdf']}
-                <span>DESCARGAR FICHA TECNICA</span>
-            </a>
-            
-            <a href="mailto:{email}?subject={email_subject}&body={email_body}" 
-               class="cta-button email">
-                {ICONOS_SVG['email']}
-                <span>SOLICITAR COTIZACION</span>
-            </a>
+            <div style="display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;">
+                
+                <!-- Boton WhatsApp -->
+                <a href="https://wa.me/{whatsapp}?text={whatsapp_msg}" target="_blank" 
+                   class="btn-hover" style="display: inline-flex; align-items: center; gap: 12px; background: #25d366; color: white; padding: 18px 35px; text-decoration: none; border-radius: 30px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 15px rgba(37,211,102,0.3);">
+                    {ICONOS_SVG['whatsapp']}
+                    CONSULTAR POR WHATSAPP
+                </a>
+                
+                <!-- Boton PDF -->
+                <a href="{pdf_url}" target="_blank" 
+                   class="btn-hover" style="display: inline-flex; align-items: center; gap: 12px; background: #FFC107; color: #333; padding: 18px 35px; text-decoration: none; border-radius: 30px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 15px rgba(255,193,7,0.3);">
+                    {ICONOS_SVG['pdf'].replace('fill="#000"', 'fill="#333"')}
+                    DESCARGAR FICHA TECNICA
+                </a>
+                
+                <!-- Boton Email -->
+                <a href="mailto:{email}?subject=Consulta%20sobre%20{descripcion_producto.replace(' ', '%20')}&body={email_body}" 
+                   class="btn-hover" style="display: inline-flex; align-items: center; gap: 12px; background: #D32F2F; color: white; padding: 18px 35px; text-decoration: none; border-radius: 30px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 15px rgba(211,47,47,0.3);">
+                    {ICONOS_SVG['email']}
+                    SOLICITAR COTIZACION
+                </a>
+                
+            </div>
         </div>
-    </div>
     '''
 
-def generar_contact_section(config):
-    """Genera la sección de contacto."""
+def generar_contact_footer_inline(config):
+    """Genera el footer de contacto con estilos inline."""
     return f'''
-    <div class="contact-footer">
-        <h4>CONTACTO DIRECTO</h4>
-        
-        <div class="contact-grid">
-            <div class="contact-item">
-                <div class="contact-icon">
-                    {ICONOS_SVG['phone']}
+        <!-- FOOTER CONTACTO -->
+        <div style="background: white; padding: 40px 30px; text-align: center; border-top: 3px solid #FFC107;">
+            <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 40px; margin-bottom: 30px;">
+                
+                <div>
+                    <p style="margin: 0; color: #666; font-size: 14px;">Telefono / WhatsApp</p>
+                    <a href="https://wa.me/{config.get('whatsapp', '541139563099')}" class="contact-link" style="color: #ff6600; text-decoration: none; font-weight: 600; font-size: 18px;">{config.get('telefono_display', '+54 11 3956-3099')}</a>
                 </div>
-                <div class="contact-info">
-                    <div class="label">Telefono / WhatsApp</div>
-                    <a href="https://wa.me/{config.get('whatsapp', '')}">{config.get('telefono_display', '')}</a>
+                
+                <div>
+                    <p style="margin: 0; color: #666; font-size: 14px;">Email</p>
+                    <a href="mailto:{config.get('email', 'info@generadores.ar')}" class="contact-link" style="color: #ff6600; text-decoration: none; font-weight: 600; font-size: 18px;">{config.get('email', 'info@generadores.ar')}</a>
+                </div>
+                
+                <div>
+                    <p style="margin: 0; color: #666; font-size: 14px;">Sitio Web</p>
+                    <a href="https://{config.get('website', 'www.generadores.ar')}" target="_blank" class="contact-link" style="color: #ff6600; text-decoration: none; font-weight: 600; font-size: 18px;">{config.get('website', 'www.generadores.ar')}</a>
+                </div>
+                
+            </div>
+            
+            <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 30px; margin-bottom: 20px; padding-top: 20px; border-top: 1px solid #eee;">
+                <div style="display: flex; align-items: center; gap: 8px; color: #666; transition: all 0.3s ease; cursor: pointer;" onmouseover="this.style.color='#ff6600'" onmouseout="this.style.color='#666'">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#ff6600"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg> <span>Garantia Oficial</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; color: #666; transition: all 0.3s ease; cursor: pointer;" onmouseover="this.style.color='#ff6600'" onmouseout="this.style.color='#666'">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#ff6600"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg> <span>Servicio Tecnico Nacional</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; color: #666; transition: all 0.3s ease; cursor: pointer;" onmouseover="this.style.color='#ff6600'" onmouseout="this.style.color='#666'">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#ff6600"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg> <span>Repuestos Originales</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; color: #666; transition: all 0.3s ease; cursor: pointer;" onmouseover="this.style.color='#ff6600'" onmouseout="this.style.color='#666'">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#ff6600"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg> <span>Financiacion Disponible</span>
                 </div>
             </div>
             
-            <div class="contact-item">
-                <div class="contact-icon">
-                    {ICONOS_SVG['email']}
-                </div>
-                <div class="contact-info">
-                    <div class="label">Email</div>
-                    <a href="mailto:{config.get('email', '')}">{config.get('email', '')}</a>
-                </div>
-            </div>
-            
-            <div class="contact-item">
-                <div class="contact-icon">
-                    {ICONOS_SVG['web']}
-                </div>
-                <div class="contact-info">
-                    <div class="label">Sitio Web</div>
-                    <a href="https://{config.get('website', '')}" target="_blank">{config.get('website', '')}</a>
-                </div>
-            </div>
+            <p style="color: #999; font-size: 13px; margin: 0;">
+                Distribuidor Oficial | Todos los derechos reservados
+            </p>
         </div>
-    </div>
     '''
 
 def generar_css_hover_effects():

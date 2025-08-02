@@ -124,18 +124,50 @@ class AIHandler:
                 marca=info.get('marca')
             )
             response_extract = self.model.generate_content(prompt_extract)
-            json_text = response_extract.text.strip().replace('```json', '').replace('```', '').strip()
-            extracted_data = json.loads(json_text)
-            info.update(extracted_data)
+            json_text = response_extract.text
+            try:
+                # Búsqueda robusta de JSON en la respuesta
+                start_index = json_text.find('{')
+                end_index = json_text.rfind('}') + 1
+                if start_index != -1 and end_index != -1:
+                    json_str = json_text[start_index:end_index]
+                    extracted_data = json.loads(json_str)
+                    info.update(extracted_data)
+                else:
+                    raise ValueError("No se encontró un objeto JSON válido en la respuesta de extracción.")
+            except json.JSONDecodeError as json_err:
+                print(f"Error de decodificación JSON. Respuesta de la IA: >>>{json_text}<<<")
+                raise ValueError(f"Respuesta de IA no es un JSON válido: {json_err}") from json_err
+
+            # Normalizar valores de consumo según tipo de combustible
+            if info.get('combustible', '').lower() in ['gas', 'gnc', 'glp']:
+                # Para gas, asegurar que el consumo esté en m³
+                consumo = info.get('consumo', info.get('consumo_75_carga', ''))
+                if consumo and 'L/h' not in consumo:
+                    info['consumo'] = consumo
+            else:
+                # Para diesel/nafta, normalizar a L/h
+                consumo = info.get('consumo', info.get('consumo_75_carga', ''))
+                if consumo:
+                    info['consumo'] = consumo.replace('Lts/h', 'L/h').replace('litros/hora', 'L/h')
             
             categoria = info.get('categoria_producto', 'default')
             print(f"✅ Categoría de producto identificada: {categoria}")
 
             # 3. Usar IA para generar contenido de marketing
-            prompt_generate = prompts['prompt_generate'].format(product_data_json=json.dumps(info, indent=2))
+            prompt_generate = prompts['prompt_generate'].format(
+                categoria_producto=categoria,
+                product_data_json=json.dumps(info, indent=2)
+            )
             response_generate = self.model.generate_content(prompt_generate)
-            json_text_marketing = response_generate.text.strip().replace('```json', '').replace('```', '').strip()
-            marketing_content = json.loads(json_text_marketing)
+            json_text_marketing = response_generate.text
+            start_index_m = json_text_marketing.find('{')
+            end_index_m = json_text_marketing.rfind('}') + 1
+            if start_index_m != -1 and end_index_m != -1:
+                json_str_m = json_text_marketing[start_index_m:end_index_m]
+                marketing_content = json.loads(json_str_m)
+            else:
+                raise ValueError("No se encontró un objeto JSON válido en la respuesta de marketing.")
             
             # 4. Seleccionar y renderizar la plantilla HTML correcta
             caracteristicas = validar_caracteristicas_producto(info, contenido_pdf['text'] if contenido_pdf else "")
@@ -150,8 +182,14 @@ class AIHandler:
             
             prompt_generate = specific_prompts['prompt_generate'].format(product_data_json=json.dumps(info, indent=2))
             response_generate = self.model.generate_content(prompt_generate)
-            json_text_marketing = response_generate.text.strip().replace('```json', '').replace('```', '').strip()
-            marketing_content = json.loads(json_text_marketing)
+            json_text_marketing = response_generate.text
+            start_index_m2 = json_text_marketing.find('{')
+            end_index_m2 = json_text_marketing.rfind('}') + 1
+            if start_index_m2 != -1 and end_index_m2 != -1:
+                json_str_m2 = json_text_marketing[start_index_m2:end_index_m2]
+                marketing_content = json.loads(json_str_m2)
+            else:
+                raise ValueError("No se encontró un objeto JSON válido en la respuesta de marketing específica.")
 
             template_function = TEMPLATE_REGISTRY.get(categoria, TEMPLATE_REGISTRY['default'])
             

@@ -212,16 +212,111 @@ def generar_html_motobomba(info, marketing_content, caracteristicas, config):
 </html>"""
     return html_completo
 
+def generar_html_motocultivador(info, marketing_content, caracteristicas, config):
+    """Genera HTML para motocultivadores."""
+    titulo = marketing_content.get('titulo_h1', info.get('nombre', 'Motocultivador'))
+    subtitulo = marketing_content.get('subtitulo_p', 'Potencia y eficiencia para preparar la tierra')
+
+    info_cards = f"""
+    <div style="padding: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+        <div class="card-hover" style="background: #f8f9fa; border-radius: 12px; padding: 25px; border-left: 4px solid #8bc34a;">
+            <p>Ancho de Labranza</p>
+            <p style="font-size: 24px; font-weight: 700;">{info.get('ancho_labranza_cm', 'N/D')} cm</p>
+        </div>
+        <div class="card-hover" style="background: #f8f9fa; border-radius: 12px; padding: 25px; border-left: 4px solid #ff6600;">
+            <p>Motor</p>
+            <p style="font-size: 24px; font-weight: 700;">{info.get('potencia_motor_hp', 'N/D')} HP</p>
+        </div>
+        <div class="card-hover" style="background: #f8f9fa; border-radius: 12px; padding: 25px; border-left: 4px solid #607d8b;">
+            <p>Marchas</p>
+            <p style="font-size: 20px; font-weight: 700;">{info.get('marchas_adelante_atras', 'N/D')}</p>
+        </div>
+    </div>
+    """
+
+    return generar_html_con_estructura_base(titulo, subtitulo, info_cards, info, marketing_content, config)
+
+def generar_html_atomizador(info, marketing_content, caracteristicas, config):
+    """Genera HTML para atomizadores/fumigadores."""
+    titulo = marketing_content.get('titulo_h1', info.get('nombre', 'Atomizador'))
+    subtitulo = marketing_content.get('subtitulo_p', 'Fumigación eficiente y profesional')
+
+    info_cards = f"""
+    <div style="padding: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+        <div class="card-hover" style="background: #f8f9fa; border-radius: 12px; padding: 25px; border-left: 4px solid #4caf50;">
+            <p>Capacidad Tanque</p>
+            <p style="font-size: 24px; font-weight: 700;">{info.get('capacidad_tanque_l', 'N/D')} L</p>
+        </div>
+        <div class="card-hover" style="background: #f8f9fa; border-radius: 12px; padding: 25px; border-left: 4px solid #ff6600;">
+            <p>Motor</p>
+            <p style="font-size: 20px; font-weight: 700;">{info.get('cilindrada_cc', 'N/D')} cc</p>
+        </div>
+        <div class="card-hover" style="background: #f8f9fa; border-radius: 12px; padding: 25px; border-left: 4px solid #2196f3;">
+            <p>Alcance</p>
+            <p style="font-size: 20px; font-weight: 700;">{info.get('alcance_pulverizacion', 'Amplio')}</p>
+        </div>
+    </div>
+    """
+
+    return generar_html_con_estructura_base(titulo, subtitulo, info_cards, info, marketing_content, config)
+
+def generar_html_chipeadora(info, marketing_content, caracteristicas, config):
+    """Genera HTML para chipeadoras."""
+    titulo = marketing_content.get('titulo_h1', info.get('nombre', 'Chipeadora'))
+    subtitulo = marketing_content.get('subtitulo_p', 'Tritura ramas y residuos eficientemente')
+
+    info_cards = f"""
+    <div style="padding: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+        <div class="card-hover" style="background: #f8f9fa; border-radius: 12px; padding: 25px; border-left: 4px solid #795548;">
+            <p>Diámetro Máximo</p>
+            <p style="font-size: 24px; font-weight: 700;">{info.get('diametro_max_rama_cm', 'N/D')} cm</p>
+        </div>
+        <div class="card-hover" style="background: #f8f9fa; border-radius: 12px; padding: 25px; border-left: 4px solid #ff6600;">
+            <p>Motor</p>
+            <p style="font-size: 24px; font-weight: 700;">{info.get('potencia_motor_hp', 'N/D')} HP</p>
+        </div>
+    </div>
+    """
+
+    return generar_html_con_estructura_base(titulo, subtitulo, info_cards, info, marketing_content, config)
+
+def generar_html_con_estructura_base(titulo, subtitulo, info_cards, info, marketing_content, config):
+    """Función helper para generar HTML con estructura común."""
+    html_completo = f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>{titulo}</title>
+    {generar_css_hover_effects()}
+</head>
+<body>
+    <div style="font-family: sans-serif; max-width: 1200px; margin: auto;">
+        {generar_hero_section_inline(titulo, subtitulo)}
+        {info_cards}
+        {generar_specs_table_inline(info)}
+        {generar_content_sections_inline(info, marketing_content)}
+        {generar_benefits_section_inline()}
+        {generar_cta_section_inline(info, config)}
+        {generar_contact_footer_inline(config)}
+    </div>
+</body>
+</html>"""
+    return html_completo
+
 # Mapeo de categorías a funciones de plantilla
 TEMPLATE_REGISTRY = {
     'generador': generar_html_generador,
     'compresor': generar_html_compresor,
     'hidrolavadora': generar_html_hidrolavadora,
     'motobomba': generar_html_motobomba,
+    'motocultivador': generar_html_motocultivador,
+    'atomizador': generar_html_atomizador,
+    'chipeadora': generar_html_chipeadora,
+    'cortadora_troncos': generar_html_default,
     'zanjadora': generar_html_default,
-    'tablero_electrico': generar_html_default,
-    'motor_individual': generar_html_default,
-    'construccion': generar_html_default,
+    'vibrador_concreto': generar_html_default,
+    'motor_estacionario': generar_html_default,
+    'implemento_agricola': generar_html_default,
     'otro': generar_html_default,
     'default': generar_html_default
 }

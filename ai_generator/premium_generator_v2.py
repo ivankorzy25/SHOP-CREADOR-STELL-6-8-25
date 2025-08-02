@@ -395,7 +395,9 @@ def generar_titulo_producto(info, caracteristicas):
             if nombre_producto and nombre_producto not in valores_no_deseados:
                 titulo = nombre_producto
 
-    return eliminar_tildes_y_especiales(titulo).upper()
+    # Asegurarse de que el título nunca sea None antes de llamar a upper()
+    titulo_limpio = eliminar_tildes_y_especiales(titulo or '')
+    return titulo_limpio.upper()
 
 def generar_subtitulo_producto(info, caracteristicas):
     """Genera el subtítulo del producto."""
@@ -419,16 +421,28 @@ def generar_hero_section_inline(titulo, subtitulo):
     '''
 
 def generar_info_cards_inline(info, caracteristicas):
-    """Genera las tarjetas de información con estilos inline."""
+    """Genera las tarjetas de información con estilos inline y lógica de potencia mejorada."""
     tipo_combustible = caracteristicas.get('tipo_combustible', 'diesel')
     icono_combustible = ICONOS_SVG.get(tipo_combustible, ICONOS_SVG['diesel'])
+
+    # Lógica de potencia mejorada
+    potencia_valor = info.get('potencia_standby_valor') or info.get('potencia_valor')
+    potencia_unidad = info.get('potencia_standby_unidad') or info.get('potencia_unidad')
     
-    # Obtener valores limpios y asegurarse de que sean strings antes de usar .strip()
-    potencia_kva = str(info.get('potencia_kva', '') or '').strip()
+    if potencia_valor and potencia_unidad:
+        potencia_str = f"{potencia_valor} {potencia_unidad.upper()}"
+    elif info.get('potencia_kva'): # Fallback para el formato antiguo
+        potencia_str = f"{info.get('potencia_kva')} KVA"
+    else:
+        potencia_str = "N/D"
+
+    # Limpiar duplicados como "KVA KVA"
+    parts = potencia_str.split()
+    if len(parts) > 1 and parts[-1].lower() == parts[-2].lower():
+        potencia_str = " ".join(parts[:-1])
+
     potencia_kw = str(info.get('potencia_kw', '') or '').strip()
-    # Usar 'motor' o 'modelo_motor' consistentemente
     motor = str(info.get('motor') or info.get('modelo_motor', '') or '').strip()
-    # Usar 'consumo' o 'consumo_combustible_75' consistentemente
     consumo = str(info.get('consumo') or info.get('consumo_combustible_75', '') or '').strip()
     
     return f'''
@@ -444,7 +458,7 @@ def generar_info_cards_inline(info, caracteristicas):
                     <div>
                         <p style="margin: 0; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Potencia Maxima</p>
                         <p style="margin: 5px 0 0 0; font-size: 24px; font-weight: 700; color: #ff6600;">
-                            {potencia_kva if potencia_kva else 'N/D'} KVA
+                            {potencia_str}
                         </p>
                         {f'<p style="margin: 0; font-size: 14px; color: #999;">{potencia_kw} KW</p>' if potencia_kw else ''}
                     </div>

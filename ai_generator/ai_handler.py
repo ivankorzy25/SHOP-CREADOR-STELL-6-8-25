@@ -9,8 +9,13 @@ import google.generativeai as genai
 from pathlib import Path
 import traceback
 
-# Importar el generador premium v2
-from ai_generator.premium_generator_v2 import generar_descripcion_detallada_html_premium
+# Importar el registro de plantillas y funciones necesarias
+from .product_templates import TEMPLATE_REGISTRY
+from .premium_generator_v2 import (
+    extraer_contenido_pdf, 
+    validar_caracteristicas_producto,
+    extraer_info_tecnica
+)
 
 class AIHandler:
     """Maneja la generación de descripciones con IA"""
@@ -90,30 +95,72 @@ class AIHandler:
 
     def generate_description(self, product_info: Dict, config: Dict = None, prompt_template: str = None) -> str:
         """
-        Genera la descripción HTML del producto con manejo de errores y fallback.
+        Genera la descripción HTML del producto de forma dinámica basada en la categoría.
         """
         if not self.model:
-            return self._generate_fallback_description(product_info, "El modelo de IA no está configurado. Por favor, valida tu API Key.")
+            return self._generate_fallback_description(product_info, "El modelo de IA no está configurado.")
 
         try:
-            # Si no se proporciona un prompt, usa el generador premium por defecto.
-            if not prompt_template:
-                print("🚀 Usando generador premium por defecto.")
-                return generar_descripcion_detallada_html_premium(
-                    row=product_info, 
-                    config=config, 
-                    modelo_ia=self.model,
-                    print_callback=print
-                )
+            # 1. Extraer datos base y del PDF
+            info = extraer_info_tecnica(product_info)
+            pdf_url = info.get('pdf_url', '')
+            contenido_pdf = None
+            if pdf_url and str(pdf_url).lower() not in ['nan', 'none', '']:
+                if not pdf_url.startswith('http'):
+                    pdf_url = f"https://storage.googleapis.com/fichas_tecnicas/{pdf_url}"
+                contenido_pdf = extraer_contenido_pdf(pdf_url, print_callback=print)
+
+            # 2. Usar IA para extraer datos estructurados y categoría
+            prompt_path = self.module_path / "templates" / "detailed_product_prompt.json"
+            with open(prompt_path, 'r', encoding='utf-8') as f:
+                prompts = json.load(f)
             
-            # Si se proporciona un prompt, úsalo.
-            print("📝 Usando prompt personalizado para generar HTML.")
-            return self._generate_html_with_custom_prompt(product_info, config, prompt_template)
-        
+            prompt_extract = prompts['prompt_extract'].format(
+                pdf_text=contenido_pdf['text'][:4000] if contenido_pdf else "",
+                pdf_tables_as_markdown=contenido_pdf['tables_markdown'] if contenido_pdf else "",
+                nombre=info.get('nombre'),
+                familia=info.get('familia'),
+                modelo=info.get('modelo'),
+                marca=info.get('marca')
+            )
+            response_extract = self.model.generate_content(prompt_extract)
+            json_text = response_extract.text.strip().replace('```json', '').replace('```', '').strip()
+            extracted_data = json.loads(json_text)
+            info.update(extracted_data)
+            
+            categoria = info.get('categoria_producto', 'default')
+            print(f"✅ Categoría de producto identificada: {categoria}")
+
+            # 3. Usar IA para generar contenido de marketing
+            prompt_generate = prompts['prompt_generate'].format(product_data_json=json.dumps(info, indent=2))
+            response_generate = self.model.generate_content(prompt_generate)
+            json_text_marketing = response_generate.text.strip().replace('```json', '').replace('```', '').strip()
+            marketing_content = json.loads(json_text_marketing)
+            
+            # 4. Seleccionar y renderizar la plantilla HTML correcta
+            caracteristicas = validar_caracteristicas_producto(info, contenido_pdf['text'] if contenido_pdf else "")
+            
+            # Cargar el prompt de generación específico para la categoría
+            prompt_generate_path = self.module_path / "templates" / f"{categoria}_prompt.json"
+            if not prompt_generate_path.exists():
+                prompt_generate_path = self.module_path / "templates" / "default_prompt.json"
+
+            with open(prompt_generate_path, 'r', encoding='utf-8') as f:
+                specific_prompts = json.load(f)
+            
+            prompt_generate = specific_prompts['prompt_generate'].format(product_data_json=json.dumps(info, indent=2))
+            response_generate = self.model.generate_content(prompt_generate)
+            json_text_marketing = response_generate.text.strip().replace('```json', '').replace('```', '').strip()
+            marketing_content = json.loads(json_text_marketing)
+
+            template_function = TEMPLATE_REGISTRY.get(categoria, TEMPLATE_REGISTRY['default'])
+            
+            print(f"🚀 Usando plantilla y prompt para '{categoria}'.")
+            return template_function(info, marketing_content, caracteristicas, config)
+
         except Exception as e:
             print(f"❌ Error crítico durante la generación: {e}")
             traceback.print_exc()
-            # Si cualquier cosa falla, devolvemos el fallback.
             return self._generate_fallback_description(product_info, str(e))
 
     def _generate_html_with_custom_prompt(self, product_info: Dict, config: Dict, prompt_template: str) -> str:

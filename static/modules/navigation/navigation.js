@@ -12,7 +12,8 @@ let moduleState = {
         total: 0
     },
     logs: [],
-    errors: []
+    errors: [],
+    localSavePath: '' // Para guardado local
 };
 
 // Temporizadores
@@ -26,7 +27,16 @@ const API_BASE_URL = 'http://localhost:5002/api/navigation';
 document.addEventListener('DOMContentLoaded', function() {
     updateUI();
     startStatusPolling();
+    setupSaveOptions();
 });
+
+function setupSaveOptions() {
+    // Habilitar el botón de guardado local solo si hay una ruta
+    const saveBtn = document.getElementById('process-local-btn');
+    if (saveBtn) {
+        saveBtn.disabled = !moduleState.localSavePath;
+    }
+}
 
 // Funciones del Navegador
 async function startBrowser() {
@@ -82,19 +92,17 @@ async function checkLogin() {
 }
 
 async function confirmLogin() {
-    addLog('Login confirmado por el usuario.', 'INFO');
+    addLog('Login confirmado por el usuario. Iniciando proceso de subida a Stel Order.', 'INFO');
     
-    // Obtener productos seleccionados desde el módulo de productos
     const productsFrame = window.parent.document.getElementById('products-frame');
     const productsToProcess = productsFrame.contentWindow.getSelectedProductsForProcessing();
     
     if (!productsToProcess || productsToProcess.length === 0) {
-        addLog('No hay productos seleccionados en la pestaña "Productos". Por favor, selecciona los productos que deseas procesar y vuelve a confirmar el login.', 'ERROR');
-        console.warn('No hay productos seleccionados para procesar');
+        addLog('No hay productos seleccionados para subir.', 'ERROR');
         return;
     }
     
-    addLog(`Se encontraron ${productsToProcess.length} productos seleccionados. Iniciando proceso...`, 'INFO');
+    addLog(`Se encontraron ${productsToProcess.length} productos.`, 'INFO');
     
     try {
         const response = await fetch(`${API_BASE_URL}/process-products`, {
@@ -102,7 +110,7 @@ async function confirmLogin() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
                 products: productsToProcess,
-                settings: { use_ai: true, update_seo: true } // Puedes ajustar esto si es necesario
+                settings: { use_ai: true }
             })
         });
         
@@ -116,11 +124,52 @@ async function confirmLogin() {
             updateUI();
         } else {
             addLog(`Error al iniciar procesamiento: ${result.error}`, 'ERROR');
-            console.error(`Error al iniciar procesamiento: ${result.error}`);
         }
     } catch (error) {
-        addLog(`Error de comunicación al iniciar procesamiento: ${error.message}`, 'ERROR');
-        console.error(`Error de comunicación al iniciar procesamiento: ${error.message}`);
+        addLog(`Error de comunicación: ${error.message}`, 'ERROR');
+    }
+}
+
+async function processAndSaveLocally() {
+    addLog('Iniciando proceso de guardado local.', 'INFO');
+
+    const productsFrame = window.parent.document.getElementById('products-frame');
+    const productsToProcess = productsFrame.contentWindow.getSelectedProductsForProcessing();
+
+    if (!productsToProcess || productsToProcess.length === 0) {
+        addLog('No hay productos seleccionados para guardar.', 'ERROR');
+        return;
+    }
+
+    if (!moduleState.localSavePath) {
+        addLog('Por favor, selecciona una carpeta de destino primero.', 'ERROR');
+        return;
+    }
+
+    addLog(`Generando HTML para ${productsToProcess.length} productos...`, 'INFO');
+    updateButton('process-local-btn', true, 'Procesando...');
+
+    try {
+        const response = await fetch(`/api/ai-generator/process-batch-locally`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                products: productsToProcess,
+                save_path: moduleState.localSavePath
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            addLog(result.message, 'SUCCESS');
+        } else {
+            addLog(`Error en el proceso de guardado: ${result.error}`, 'ERROR');
+        }
+    } catch (error) {
+        addLog(`Error de comunicación con el servidor: ${error.message}`, 'ERROR');
+    } finally {
+        updateButton('process-local-btn', false, '<i class="fas fa-save"></i> Generar y Guardar Todos');
     }
 }
 
@@ -487,6 +536,23 @@ function downloadScreenshot() {
     a.href = img.src;
     a.download = `screenshot_${new Date().getTime()}.png`;
     a.click();
+}
+
+async function selectSaveFolder() {
+    try {
+        const response = await fetch('/api/save/select-folder');
+        const data = await response.json();
+        if (data.success) {
+            moduleState.localSavePath = data.path;
+            document.getElementById('save-path-display').textContent = `Ruta: ${data.path}`;
+            document.getElementById('process-local-btn').disabled = false;
+            addLog(`Carpeta de guardado seleccionada: ${data.path}`, 'INFO');
+        } else {
+            addLog(data.error || 'No se seleccionó carpeta.', 'WARNING');
+        }
+    } catch (error) {
+        addLog('Error al abrir el selector de carpetas.', 'ERROR');
+    }
 }
 
 // Polling de estado

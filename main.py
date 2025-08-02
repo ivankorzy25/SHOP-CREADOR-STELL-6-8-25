@@ -18,6 +18,8 @@ from flask import Flask, render_template, jsonify, request, send_file
 from flask_cors import CORS
 import logging
 import pandas as pd
+import tkinter as tk
+from tkinter import filedialog
 
 # Importar módulos
 from products.product_manager import ProductManager
@@ -339,54 +341,35 @@ def close_browser():
 
 @app.route('/api/navigation/process-products', methods=['POST'])
 def process_products():
-    """Procesar lista de productos"""
+    """Procesar lista de productos y subirlos a Stel Order."""
     try:
         data = request.get_json() or {}
         products = data.get('products', [])
         settings = data.get('settings', {})
         
         if not products:
-            return jsonify({'success': False, 'error': 'No hay productos'})
+            return jsonify({'success': False, 'error': 'No hay productos para procesar.'})
         
-        # Callback para generar descripciones
-        def generate_descriptions(product):
-            if settings.get('use_ai') and app_state['ai_configured']:
-                # Usar IA
-                descripcion_detallada = ai_handler.generate_description(
-                    product_info=product['row_data'],
-                    config=get_contact_config()
-                )
-                
-                # Generar descripción corta sin HTML
-                descripcion = generate_short_description(product['row_data'])
-                
-                return {
-                    'descripcion': descripcion,
-                    'descripcion_detallada': descripcion_detallada,
-                    'seo_titulo': f"{product['nombre']} - Generador Eléctrico",
-                    'seo_descripcion': descripcion[:160]
-                }
-            else:
-                # Sin IA, usar generación básica
-                descripcion_detallada = generate_fallback_preview(product['row_data'])
-                
-                descripcion = generate_short_description(product['row_data'])
-                
-                return {
-                    'descripcion': descripcion,
-                    'descripcion_detallada': descripcion_detallada,
-                    'seo_titulo': f"{product['nombre']} - Equipo Industrial",
-                    'seo_descripcion': descripcion[:160]
-                }
-        
-        # Iniciar procesamiento en thread
-        selenium_handler.process_products(products, generate_descriptions)
+        def generate_descriptions_for_upload(product):
+            product_info = product.get('row_data', {})
+            descripcion_detallada = ai_handler.generate_description(
+                product_info=product_info,
+                config=get_contact_config()
+            )
+            descripcion_corta = generate_short_description(product_info)
+            return {
+                'descripcion': descripcion_corta,
+                'descripcion_detallada': descripcion_detallada,
+                'seo_titulo': f"{product_info.get('nombre', 'Producto')} - Generador Eléctrico",
+                'seo_descripcion': descripcion_corta[:160]
+            }
+
+        selenium_handler.process_products(products, generate_descriptions_for_upload)
         app_state['processing'] = True
-        
         return jsonify({'success': True})
         
     except Exception as e:
-        logger.error(f"Error procesando productos: {e}")
+        logger.error(f"Error procesando productos para Stel Order: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/navigation/status')
@@ -545,7 +528,7 @@ def extract_pdf_content():
 
 @app.route('/api/ai-generator/test-prompt', methods=['POST'])
 def test_prompt_with_product():
-    """Prueba un prompt temporal con un producto específico"""
+    """Prueba un prompt y opcionalmente guarda el resultado localmente."""
     try:
         data = request.get_json() or {}
         product_data = data.get('product')
@@ -553,112 +536,65 @@ def test_prompt_with_product():
         api_key = data.get('api_key')
         pdf_content = data.get('pdf_content')
         use_premium = data.get('use_premium_generator', False)
+        save_locally = data.get('save_locally', False)
+        save_path = data.get('save_path', '')
 
         logger.info("=== DEBUG: test_prompt_with_product ===")
         logger.info(f"Producto: {product_data.get('nombre') if product_data else 'N/A'}")
-        logger.info(f"Usar generador premium: {use_premium}")
-        logger.info(f"Prompt recibido: {'Sí' if temp_prompt else 'No'}")
+        logger.info(f"Guardar localmente: {save_locally}, Ruta: {save_path}")
         logger.info("=====================================")
 
         if not ai_handler.model:
             if api_key:
                 ai_handler.initialize_model(api_key)
             elif not ai_handler.initialize_model(ai_handler.api_key):
-                return jsonify({
-                    'success': False, 
-                    'error': 'No hay modelo de IA configurado. Por favor valida tu API key.'
-                })
+                return jsonify({'success': False, 'error': 'No hay modelo de IA configurado.'})
 
-        temp_handler = ai_handler
-        
         if pdf_content and product_data:
             product_data['pdf_content'] = pdf_content
 
-        import threading
-        import time
-        
-        result = [None]
-        error = [None]
-        
-        def generate_with_timeout():
-            try:
-                # Decidir qué método usar
-                if use_premium or not temp_prompt:
-                    logger.info("Ejecutando generador PREMIUM...")
-                    html_result = temp_handler.generate_description(
-                        product_info=product_data,
-                        prompt_template=None,  # Forzar uso de premium
-                        config=get_contact_config()
-                    )
-                else:
-                    logger.info("Ejecutando con prompt PERSONALIZADO...")
-                    html_result = temp_handler.generate_description(
-                        product_info=product_data,
-                        prompt_template=temp_prompt,
-                        config=get_contact_config()
-                    )
-                result[0] = html_result
-            except Exception as e:
-                error[0] = str(e)
-        
-        thread = threading.Thread(target=generate_with_timeout)
-        thread.daemon = True
-        thread.start()
-        thread.join(90)
-        
-        if thread.is_alive():
-            # Timeout - el modelo está sobrecargado
-            logger.warning("Timeout al generar vista previa - modelo sobrecargado")
-            fallback_html = generate_fallback_preview(product_data)
-            return jsonify({
-                'success': True,
-                'html': fallback_html,
-                'processed': True,
-                'warning': 'El modelo de IA está sobrecargado. Se generó una vista previa básica.'
-            })
-        
-        if error[0]:
-            # Error durante la generación
-            logger.error(f"Error generando preview: {error[0]}")
-            if "overloaded" in str(error[0]).lower() or "unavailable" in str(error[0]).lower():
-                fallback_html = generate_fallback_preview(product_data)
-                return jsonify({
-                    'success': True,
-                    'html': fallback_html,
-                    'processed': True,
-                    'warning': 'El modelo de IA está temporalmente no disponible. Se generó una vista previa básica.'
-                })
+        html_result = None
+        try:
+            if use_premium or not temp_prompt:
+                logger.info("Ejecutando generador PREMIUM...")
+                html_result = ai_handler.generate_description(
+                    product_info=product_data,
+                    prompt_template=None,
+                    config=get_contact_config()
+                )
             else:
-                return jsonify({'success': False, 'error': str(error[0])})
-        
-        if result[0]:
-            return jsonify({
-                'success': True,
-                'html': result[0],
-                'processed': True
-            })
-        else:
-            # No se obtuvo resultado
-            fallback_html = generate_fallback_preview(product_data)
-            return jsonify({
-                'success': True,
-                'html': fallback_html,
-                'processed': True,
-                'warning': 'No se pudo generar contenido con IA. Se generó una vista previa básica.'
-            })
+                logger.info("Ejecutando con prompt PERSONALIZADO...")
+                html_result = ai_handler.generate_description(
+                    product_info=product_data,
+                    prompt_template=temp_prompt,
+                    config=get_contact_config()
+                )
+        except Exception as e:
+            logger.error(f"Error generando preview: {e}")
+            return jsonify({'success': False, 'error': str(e)})
+
+        if not html_result:
+            return jsonify({'success': False, 'error': 'No se pudo generar contenido con IA.'})
+
+        save_message = ''
+        if save_locally and save_path and product_data:
+            try:
+                save_message = save_html_locally(html_result, product_data, save_path)
+                logger.info(f"Guardado local: {save_message}")
+            except Exception as e:
+                logger.error(f"Error guardando localmente: {e}")
+                save_message = f'Error al guardar: {e}'
+
+        return jsonify({
+            'success': True,
+            'html': html_result,
+            'processed': True,
+            'save_message': save_message
+        })
         
     except Exception as e:
-        logger.error(f"Error crítico generando preview: {e}")
-        try:
-            fallback_html = generate_fallback_preview(data.get('product', {}))
-            return jsonify({
-                'success': True,
-                'html': fallback_html,
-                'processed': True,
-                'warning': 'Error en el sistema. Se generó una vista previa básica.'
-            })
-        except:
-            return jsonify({'success': False, 'error': 'Error crítico del sistema'})
+        logger.error(f"Error crítico en test-prompt: {e}")
+        return jsonify({'success': False, 'error': f'Error crítico del sistema: {str(e)}'})
 
 @app.route('/api/ai-generator/ai-assistant', methods=['POST'])
 def ai_prompt_assistant():
@@ -739,25 +675,60 @@ def compare_prompt_versions():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/ai-generator/convert-html-for-stelorder', methods=['POST'])
-def convert_html_for_stelorder():
-    """Convierte HTML para compatibilidad con Stelorder"""
+@app.route('/api/ai-generator/process-batch-locally', methods=['POST'])
+def process_batch_locally():
+    """Genera y guarda localmente los HTML para un lote de productos."""
     try:
         data = request.get_json() or {}
-        html_content = data.get('html')
+        products = data.get('products', [])
+        save_path = data.get('save_path', '')
+
+        if not products:
+            return jsonify({'success': False, 'error': 'No hay productos para procesar.'})
+        if not save_path:
+            return jsonify({'success': False, 'error': 'No se proporcionó una ruta de guardado.'})
+
+        def processing_thread():
+            count = 0
+            for product in products:
+                try:
+                    product_info = product.get('row_data', {})
+                    html_content = ai_handler.generate_description(
+                        product_info=product_info,
+                        config=get_contact_config()
+                    )
+                    if html_content:
+                        save_html_locally(html_content, product_info, save_path)
+                        count += 1
+                except Exception as e:
+                    logger.error(f"Error generando/guardando para {product.get('nombre')}: {e}")
+            logger.info(f"Proceso de guardado local finalizado. Se guardaron {count} archivos.")
+
+        threading.Thread(target=processing_thread, daemon=True).start()
         
-        # Aquí integrarías tu conversor de estilos
-        # Por ahora, retornamos el HTML tal cual
-        # TODO: Integrar conversor-python-final-v41.py
-        
-        converted_html = html_content  # Placeholder
-        
-        return jsonify({
-            'success': True,
-            'converted_html': converted_html
-        })
+        return jsonify({'success': True, 'message': f'Iniciando la generación de {len(products)} archivos. El proceso se ejecutará en segundo plano.'})
+
     except Exception as e:
+        logger.error(f"Error en el endpoint de procesamiento por lotes: {e}")
         return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/save/select-folder', methods=['GET'])
+def select_folder():
+    """Abre un diálogo para seleccionar una carpeta y devuelve la ruta."""
+    try:
+        root = tk.Tk()
+        root.withdraw()  # Ocultar la ventana principal de Tkinter
+        root.attributes('-topmost', True)  # Poner el diálogo al frente
+        folder_path = filedialog.askdirectory(title="Seleccione una carpeta para guardar los archivos HTML")
+        root.destroy()
+        
+        if folder_path:
+            return jsonify({'success': True, 'path': folder_path})
+        else:
+            return jsonify({'success': False, 'error': 'No se seleccionó ninguna carpeta.'})
+    except Exception as e:
+        logger.error(f"Error al abrir el diálogo de selección de carpeta: {e}")
+        return jsonify({'success': False, 'error': f'Error del sistema: {str(e)}'})
 
 # ============================================================================
 # FUNCIONES AUXILIARES
@@ -770,6 +741,34 @@ def handle_product_complete(result):
 def handle_navigation_error(error_data):
     """Callback para errores de navegación"""
     logger.error(f"Error en navegación: {error_data}")
+
+def save_html_locally(html_content, product_info, base_path):
+    """Guarda el contenido HTML en una carpeta local basada en la familia del producto."""
+    try:
+        # Obtener datos para el nombre del archivo y la carpeta
+        family = product_info.get('familia', 'SIN_FAMILIA')
+        model = product_info.get('modelo', 'sin_modelo')
+        
+        # Limpiar nombres para que sean válidos en sistemas de archivos
+        safe_family_name = "".join([c for c in family if c.isalnum() or c in (' ', '-')]).rstrip()
+        safe_model_name = "".join([c for c in model if c.isalnum() or c in (' ', '-')]).rstrip().replace(' ', '_')
+
+        # Crear nombre de archivo
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_name = f"{safe_model_name}_{timestamp}.html"
+        
+        # Crear ruta completa usando la familia como nombre de la subcarpeta
+        target_folder = Path(base_path) / safe_family_name
+        target_folder.mkdir(parents=True, exist_ok=True)
+        file_path = target_folder / file_name
+        
+        # Guardar archivo
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+            
+        return f"Archivo guardado en: {file_path}"
+    except Exception as e:
+        raise IOError(f"No se pudo guardar el archivo en {base_path}: {e}")
 
 def get_contact_config():
     """Obtener configuración de contacto"""

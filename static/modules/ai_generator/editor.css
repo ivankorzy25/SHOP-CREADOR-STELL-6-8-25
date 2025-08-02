@@ -90,155 +90,50 @@ body {
 }
 
 .left-panel {
-    flex: 1.5;
-    min-width: 350px;
+    flex: 0 0 350px; /* Ancho fijo para el panel de controles */
+    overflow-y: auto;
 }
 
 .center-panel {
-    flex: 2;
-    min-width: 400px;
-    min-height: 0; /* Importante para que el scroll funcione */
+    display: none; /* Mantenemos el panel del editor oculto */
 }
 
 .right-panel {
     flex: 1;
-    min-width: 300px;
+    display: flex;
+    flex-direction: column;
+    min-width: 400px;
+    padding: 0; /* Sin padding para que el contenido ocupe todo el espacio */
+    background-color: transparent;
+    box-shadow: none;
 }
 
-/* Selector de version */
-.version-selector {
-    padding: 15px;
-    border-bottom: 1px solid var(--border-color);
+.preview-section {
+    flex: 1;
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    padding: 0; /* Sin padding */
+    min-height: 0;
+    background: white;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+.preview-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    word-wrap: break-word;
+    border-top: 1px solid var(--border-color);
+}
+
+.preview-actions-left {
+    display: flex;
     gap: 10px;
 }
 
-.version-selector label {
-    font-weight: 600;
-    color: var(--dark-color);
-}
-
-.version-selector select {
+.preview-actions-left .btn {
     flex: 1;
-    padding: 8px;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius);
-    font-size: 14px;
-}
-
-/* Editor de prompts */
-.prompt-editor-section {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    padding: 15px;
-    min-height: 0; /* Cambiado para permitir que el contenedor se encoja */
-    overflow: hidden; /* Añadido para contener el overflow */
-}
-
-.editor-toolbar {
-    display: flex;
-    gap: 5px;
-    margin-bottom: 10px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--border-color);
-    flex-shrink: 0; /* Evita que la toolbar se encoja */
-}
-
-#prompt-editor {
-    flex: 1;
-    width: 100%;
-    padding: 15px;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius);
-    font-family: 'Consolas', 'Monaco', monospace;
-    font-size: 14px;
-    line-height: 1.5;
-    resize: none;
-    transition: border-color 0.3s;
-    overflow-y: auto; /* Añadido scroll vertical */
-    min-height: 200px; /* Altura mínima para usabilidad */
-}
-
-#prompt-editor:focus {
-    outline: none;
-    border-color: var(--primary-color);
-}
-
-/* Asistente IA */
-.ai-assistant-section {
-    padding: 15px;
-    border-top: 1px solid var(--border-color);
-    height: 300px;
-    display: flex;
-    flex-direction: column;
-}
-
-.ai-assistant-section h3 {
-    color: var(--dark-color);
-    font-size: 18px;
-    margin-bottom: 10px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.ai-assistant-section h3 i {
-    color: var(--primary-color);
-}
-
-.chat-interface {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius);
-    overflow: hidden;
-}
-
-.chat-messages {
-    flex: 1;
-    padding: 10px;
-    overflow-y: auto;
-    background-color: #fafafa;
-}
-
-.chat-message {
-    margin-bottom: 10px;
-    padding: 8px 12px;
-    border-radius: var(--radius);
-    max-width: 80%;
-}
-
-.chat-message.user {
-    background-color: var(--primary-color);
-    color: white;
-    margin-left: auto;
-}
-
-.chat-message.ai {
-    background-color: #e9ecef;
-    color: var(--text-color);
-}
-
-.chat-input {
-    display: flex;
-    padding: 10px;
-    border-top: 1px solid var(--border-color);
-    background-color: white;
-}
-
-.chat-input input {
-    flex: 1;
-    padding: 8px 12px;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius) 0 0 var(--radius);
-    font-size: 14px;
-}
-
-.chat-input button {
-    border-radius: 0 var(--radius) var(--radius) 0;
 }
 
 /* Selector de producto */
@@ -318,11 +213,10 @@ body {
     border: 1px solid var(--border-color);
     border-radius: var(--radius);
     background-color: white;
-    overflow-y: auto; /* Revertido a auto para que solo aparezca cuando sea necesario */
+    overflow-y: auto;
     padding: 20px;
     word-wrap: break-word;
-    min-height: 0; /* Añadido para permitir que el contenedor se encoja y active el scroll */
-    max-height: calc(100vh - 400px); /* Altura máxima para forzar el scroll */
+    min-height: 0;
 }
 
 .preview-placeholder {
@@ -767,4 +661,34 @@ body {
     margin-right: 8px;
     transform: scale(1.2);
     accent-color: var(--primary-color);
+}
+
+/* Estilos para Guardado Local */
+.local-save-section {
+    padding: 15px;
+    border-top: 1px solid var(--border-color);
+}
+
+.local-save-section h3 {
+    color: var(--dark-color);
+    font-size: 18px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.local-save-section h3 i {
+    color: var(--success-color);
+}
+
+.path-display {
+    margin-top: 10px;
+    padding: 8px 12px;
+    background-color: #f8f9fa;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    font-size: 12px;
+    color: #666;
+    word-wrap: break-word;
 }

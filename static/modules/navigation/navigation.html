@@ -114,6 +114,33 @@
                         📊 Exportar Estadísticas
                     </button>
                 </div>
+
+                <div class="save-options">
+                    <h4>Acción Final</h4>
+                    <p>Define qué hacer con los productos seleccionados.</p>
+                    <div class="final-actions">
+                        <div class="action-group">
+                            <h5>Subir a Stel Order</h5>
+                            <p class="description">Inicia el navegador, hace login y actualiza los productos en Stel Order.</p>
+                            <button id="confirm-login" onclick="confirmLogin()" class="btn btn-primary" disabled>
+                                <i class="fas fa-upload"></i> Iniciar Proceso de Subida
+                            </button>
+                        </div>
+                        <div class="action-group">
+                            <h5>Guardar Localmente</h5>
+                            <p class="description">Genera los archivos HTML para todos los productos seleccionados y los guarda en una carpeta de tu PC.</p>
+                            <div id="local-save-controls">
+                                <button id="select-folder-btn" class="btn btn-secondary" onclick="selectSaveFolder()">
+                                    <i class="fas fa-folder-open"></i> Seleccionar Carpeta de Destino
+                                </button>
+                                <div id="save-path-display">No hay carpeta seleccionada.</div>
+                            </div>
+                            <button id="process-local-btn" onclick="processAndSaveLocally()" class="btn btn-success" disabled>
+                                <i class="fas fa-save"></i> Generar y Guardar Todos
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- Log de Actividad -->

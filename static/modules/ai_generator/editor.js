@@ -11,7 +11,8 @@ const editorState = {
     isDirty: false,
     previewTimeout: null,
     selectedProduct: null,
-    productPdfContent: null
+    productPdfContent: null,
+    localSavePath: '' // Nueva propiedad para la ruta de guardado
 };
 
 // Inicialización
@@ -258,16 +259,7 @@ function displayProductInfo(product) {
     infoDiv.innerHTML = `
         <div class="empty-state">
             <p>No hay producto seleccionado.</p>
-            <small>Selecciona un tipo de producto de muestra:</small>
-            <div style="margin-top: 10px;">
-                <select id="product-type" style="width: 100%; margin-bottom: 10px;">
-                    <option value="">-- Seleccionar --</option>
-                    <option value="grupo_electrogeno">Grupo Electrógeno</option>
-                    <option value="compresor">Compresor</option>
-                    <option value="motobomba">Motobomba</option>
-                </select>
-                <button onclick="loadSampleProduct()" class="btn btn-primary btn-block">Cargar Producto</button>
-            </div>
+            <small>Haz clic en "Seleccionar Producto" para empezar.</small>
         </div>`;
         return;
     }
@@ -335,37 +327,25 @@ async function handleParentMessage(event) {
 }
 
 // Refrescar vista previa
-async function refreshPreview() {
-    console.log('DEBUG: refreshPreview() - Estado actual:', {
-        isApiValid: editorState.isApiValid,
-        currentProduct: editorState.currentProduct,
-        selectedProduct: editorState.selectedProduct
-    });
-    
+async function refreshPreview(save = false) {
     if (!editorState.isApiValid) {
         showNotification('Por favor valida tu API key primero', 'error');
         return;
     }
 
-    if (!editorState.currentProduct) {
-        // Mostrar mensaje en el área de vista previa
-        const container = document.getElementById('preview-container');
-        container.innerHTML = `
-            <div class="preview-placeholder" style="background: #fff3e0; border: 2px solid #ff6600; padding: 20px;">
-                <i class="fas fa-exclamation-triangle" style="color: #ff6600; font-size: 2em;"></i>
-                <h3 style="color: #ff6600;">⚠️ No hay producto seleccionado</h3>
-                <p>Para generar la vista previa necesitas:</p>
-                <ol style="text-align: left; max-width: 400px; margin: 0 auto;">
-                    <li>Hacer clic en el botón <strong>"Seleccionar Producto"</strong> arriba</li>
-                    <li>O cargar un producto de muestra desde el selector</li>
-                    <li>Luego hacer clic en <strong>"Actualizar"</strong> o esperar a que se genere automáticamente</li>
-                </ol>
-            </div>
-        `;
+    // Asegurarse de que estamos usando el producto correcto del estado
+    const productToUse = editorState.selectedProduct || editorState.currentProduct;
+
+    if (!productToUse) {
         showNotification('⚠️ Selecciona un producto primero para generar la vista previa', 'warning', 7000);
         return;
     }
     
+    if (save && !editorState.localSavePath) {
+        showNotification('Por favor, selecciona una carpeta de destino antes de guardar.', 'error');
+        return;
+    }
+
     const prompt = document.getElementById('prompt-editor').value;
     if (!prompt) {
         showNotification('El prompt está vacío', 'warning');
@@ -373,35 +353,30 @@ async function refreshPreview() {
     }
     
     const usePremium = document.getElementById('use-premium-generator').checked;
-    const loadingMessage = usePremium 
+    let loadingMessage = usePremium 
         ? "Usando generador HTML premium..." 
         : "Generando con prompt personalizado...";
+    if (save) {
+        loadingMessage = "Generando y guardando archivo...";
+    }
 
-    // Mostrar indicador de carga en el preview
     const container = document.getElementById('preview-container');
-    container.innerHTML = `
-        <div class="preview-placeholder">
-            <div class="loading-spinner"></div>
-            <p>${loadingMessage}</p>
-        </div>
-    `;
+    container.innerHTML = `<div class="preview-placeholder"><div class="loading-spinner"></div><p>${loadingMessage}</p></div>`;
     
     try {
         const payload = {
-            product: editorState.currentProduct,
+            product: productToUse, // Usar la variable correcta
             prompt: prompt,
             api_key: editorState.apiKey,
             pdf_content: editorState.productPdfContent,
-            use_premium_generator: usePremium
+            use_premium_generator: usePremium,
+            save_locally: save,
+            save_path: editorState.localSavePath
         };
         
-        console.log("Enviando al backend para generar vista previa:", payload);
-
         const response = await fetch('/api/ai-generator/test-prompt', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
         
@@ -409,29 +384,16 @@ async function refreshPreview() {
         
         if (data.success) {
             displayPreview(data.html);
-            // Si fue llamado desde el asistente, notificar
-            if (document.querySelector('.chat-message:last-child')?.textContent.includes('Generando nueva vista previa')) {
-                addChatMessage('✨ Vista previa actualizada con los cambios solicitados.', 'ai');
+            if (data.save_message) {
+                showNotification(data.save_message, 'success', 8000);
             }
         } else {
-            container.innerHTML = `
-                <div class="preview-placeholder">
-                    <i class="fas fa-exclamation-triangle" style="color: #dc3545;"></i>
-                    <p>Error al generar preview</p>
-                    <small>${data.error}</small>
-                </div>
-            `;
-            showNotification('Error al generar preview: ' + data.error, 'error');
+            container.innerHTML = `<div class="preview-placeholder"><i class="fas fa-exclamation-triangle" style="color: #dc3545;"></i><p>Error al generar</p><small>${data.error}</small></div>`;
+            showNotification('Error al generar: ' + data.error, 'error');
         }
     } catch (error) {
         console.error('Error:', error);
-        container.innerHTML = `
-            <div class="preview-placeholder">
-                <i class="fas fa-exclamation-triangle" style="color: #dc3545;"></i>
-                <p>Error de conexión</p>
-                <small>${error.message}</small>
-            </div>
-        `;
+        container.innerHTML = `<div class="preview-placeholder"><i class="fas fa-exclamation-triangle" style="color: #dc3545;"></i><p>Error de conexión</p><small>${error.message}</small></div>`;
         showNotification('Error al conectar con el servidor', 'error');
     }
 }
@@ -605,8 +567,28 @@ function showComparisonModal(comparison) {
 }
 
 // Acciones rápidas
-function testWithProduct() {
-    refreshPreview();
+function testWithProduct(save = false) {
+    refreshPreview(save);
+}
+
+async function selectSaveFolder() {
+    showLoading();
+    try {
+        const response = await fetch('/api/save/select-folder');
+        const data = await response.json();
+        if (data.success) {
+            editorState.localSavePath = data.path;
+            document.getElementById('save-path-display').textContent = data.path;
+            showNotification('Carpeta de guardado seleccionada', 'success');
+        } else {
+            showNotification(data.error || 'No se seleccionó carpeta', 'warning');
+        }
+    } catch (error) {
+        console.error('Error seleccionando carpeta:', error);
+        showNotification('Error al abrir el selector de carpetas', 'error');
+    } finally {
+        hideLoading();
+    }
 }
 
 function saveAsVersion() {

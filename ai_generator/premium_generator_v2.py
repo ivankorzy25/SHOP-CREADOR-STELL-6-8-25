@@ -486,37 +486,53 @@ def generar_info_cards_inline(info, caracteristicas):
     '''
 
 def generar_specs_table_inline(info):
-    """Genera la tabla de especificaciones con estilos inline."""
-    # Mapeo de especificaciones a mostrar
-    specs_display = [
-        ('modelo', 'Modelo', ICONOS_SVG.get('motor', '')),
-        ('potencia_kva', 'Potencia Stand By', ICONOS_SVG.get('potencia', '')),
-        ('potencia_prime', 'Potencia Prime', ICONOS_SVG.get('potencia', '')),
-        ('voltaje', 'Voltaje', ICONOS_SVG.get('voltaje', '')),
-        ('frecuencia', 'Frecuencia', ICONOS_SVG.get('frecuencia', '')),
-        ('motor', 'Motor', ICONOS_SVG.get('motor', '')),
-        ('alternador', 'Alternador', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#ff6600"><path d="M12 2l-5.5 9h11z M12 22l5.5-9h-11z M3.5 9L12 12l-3.5 6z M20.5 9L12 12l3.5 6z"/></svg>'),
-        ('consumo', 'Consumo al 100%', ICONOS_SVG.get('consumo', '')),
-        ('dimensiones_mm', 'Dimensiones (LxAxH)', ICONOS_SVG.get('dimensiones', '')),
-        ('peso_kg', 'Peso', ICONOS_SVG.get('peso', ''))
-    ]
+    """Genera la tabla de especificaciones dinámicamente, omitiendo valores N/D."""
     
-    # Generar filas
+    # Mapeo de claves a etiquetas e iconos para un renderizado más amigable
+    spec_map = {
+        'modelo': ('Modelo', ICONOS_SVG.get('motor')),
+        'potencia_kva': ('Potencia Stand By', ICONOS_SVG.get('potencia')),
+        'potencia_prime': ('Potencia Prime', ICONOS_SVG.get('potencia')),
+        'voltaje': ('Voltaje', ICONOS_SVG.get('voltaje')),
+        'frecuencia': ('Frecuencia', ICONOS_SVG.get('frecuencia')),
+        'motor': ('Motor', ICONOS_SVG.get('motor')),
+        'alternador': ('Alternador', ICONOS_SVG.get('tools')),
+        'consumo': ('Consumo', ICONOS_SVG.get('consumo')),
+        'presion_bar': ('Presión', ICONOS_SVG.get('potencia')),
+        'caudal_lts_min': ('Caudal', ICONOS_SVG.get('consumo')),
+        'dimensiones_mm': ('Dimensiones (LxAxH)', ICONOS_SVG.get('dimensiones')),
+        'peso_kg': ('Peso', ICONOS_SVG.get('peso')),
+        'capacidad_tanque_litros': ('Cap. Tanque', ICONOS_SVG.get('consumo'))
+    }
+
     rows_html = ""
     row_count = 0
-    for key, label, icon in specs_display:
-        value = info.get(key, '')
-        if value and str(value).strip():
-            bg_color = '#f8f9fa' if row_count % 2 == 0 else 'white'
-            rows_html += f'''
-                    <tr class="spec-row" style="background: {bg_color}; border-bottom: 1px solid #eee;">
-                        <td style="padding: 15px 20px; display: flex; align-items: center; gap: 10px;">
-                            <div style="width: 20px; height: 20px; opacity: 0.6;">{icon.replace('fill="#D32F2F"', 'fill="#ff6600"')}</div>
-                            <span style="color: #666; font-weight: 500;">{label}</span>
-                        </td>
-                        <td style="padding: 15px 20px; font-weight: 600; color: #333;">{value}</td>
-                    </tr>'''
-            row_count += 1
+    
+    # Lista de claves a excluir de la tabla de especificaciones
+    exclude_keys = [
+        'nombre', 'marca', 'familia', 'pdf_url', 'marketing_content', 
+        'categoria_producto', 'caracteristicas_especiales'
+    ]
+
+    # Iterar sobre los datos del producto y construir la tabla dinámicamente
+    for key, value in info.items():
+        # Omitir claves excluidas, valores nulos, vacíos o 'N/D'
+        if key in exclude_keys or not value or str(value).strip().lower() in ['n/d', 'nan', 'none', '']:
+            continue
+            
+        # Obtener etiqueta e icono del mapa, o usar valores por defecto
+        label, icon = spec_map.get(key, (key.replace('_', ' ').capitalize(), ICONOS_SVG.get('specs')))
+        
+        bg_color = '#f8f9fa' if row_count % 2 == 0 else 'white'
+        rows_html += f'''
+                <tr class="spec-row" style="background: {bg_color}; border-bottom: 1px solid #eee;">
+                    <td style="padding: 15px 20px; display: flex; align-items: center; gap: 10px;">
+                        <div style="width: 20px; height: 20px; opacity: 0.6;">{icon.replace('fill="#D32F2F"', 'fill="#ff6600"')}</div>
+                        <span style="color: #666; font-weight: 500;">{label}</span>
+                    </td>
+                    <td style="padding: 15px 20px; font-weight: 600; color: #333;">{value}</td>
+                </tr>'''
+        row_count += 1
     
     return f'''
         <!-- TABLA DE ESPECIFICACIONES TECNICAS -->
@@ -888,101 +904,6 @@ def generar_css_hover_effects():
     </style>
     '''
 
-def generar_descripcion_detallada_html_premium(row, config, modelo_ia=None, print_callback=print):
-    """
-    Función principal que orquesta la generación de la descripción HTML premium.
-    """
-    # 1. Extraer y procesar datos del producto
-    info_inicial = extraer_info_tecnica(row)
-    info = info_inicial.copy()
-
-    pdf_url = info_inicial.get('pdf_url', '')
-    contenido_pdf = None
-    if pdf_url and str(pdf_url).lower() not in ['nan', 'none', '']:
-        if not pdf_url.startswith('http'):
-            pdf_url = f"https://storage.googleapis.com/fichas_tecnicas/{pdf_url}"
-        contenido_pdf = extraer_contenido_pdf(pdf_url, print_callback)
-
-    marketing_content = {}
-    # 2. Enriquecer datos con IA si es posible
-    if contenido_pdf and modelo_ia:
-        print("🤖 Iniciando extracción y generación de contenido con IA...")
-        try:
-            # Cargar prompts
-            prompt_path = Path(__file__).parent / 'templates' / 'detailed_product_prompt.json'
-            with open(prompt_path, 'r', encoding='utf-8') as f:
-                prompts = json.load(f)
-
-            # Fase 1: Extracción de datos
-            prompt_extract = prompts['prompt_extract'].format(
-                pdf_text=contenido_pdf['text'][:4000],
-                pdf_tables_as_markdown=contenido_pdf['tables_markdown'],
-                nombre=info.get('nombre'),
-                familia=info.get('familia'),
-                modelo=info.get('modelo'),
-                marca=info.get('marca')
-            )
-            response_extract = modelo_ia.generate_content(prompt_extract)
-            
-            # Limpiar y parsear la respuesta JSON de la IA
-            json_text = response_extract.text.strip().replace('```json', '').replace('```', '').strip()
-            extracted_data = json.loads(json_text)
-            info.update(extracted_data)
-            print("✅ Datos extraídos con IA.")
-
-            # Fase 2: Generación de contenido de marketing
-            prompt_generate = prompts['prompt_generate'].format(product_data_json=json.dumps(info, indent=2))
-            response_generate = modelo_ia.generate_content(prompt_generate)
-            json_text_marketing = response_generate.text.strip().replace('```json', '').replace('```', '').strip()
-            marketing_content = json.loads(json_text_marketing)
-            print("✅ Contenido de marketing generado por IA.")
-
-        except Exception as e:
-            print(f"⚠️ Error en el proceso con IA, se usarán datos básicos y contenido por defecto: {e}")
-            
-    texto_completo_pdf = contenido_pdf['text'] if contenido_pdf else ""
-    caracteristicas = validar_caracteristicas_producto(info, texto_completo_pdf)
-    
-    # Integrar el contenido de marketing en info para que esté disponible en todas las funciones
-    if marketing_content:
-        info['marketing_content'] = marketing_content
-    
-    # 3. Generar cada sección del HTML
-    titulo = generar_titulo_producto(info, caracteristicas)
-    subtitulo = generar_subtitulo_producto(info, caracteristicas)
-    
-    # 4. Ensamblar el HTML final con estilo inline exacto
-    nombre_producto = eliminar_tildes_y_especiales(info.get('nombre', 'este producto'))
-    
-    html_completo = f"""<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{eliminar_tildes_y_especiales(titulo)} - Vista Previa</title>
-    {generar_css_hover_effects()}
-</head>
-<body style="margin: 0; padding: 0; background: #f5f5f5;">
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; max-width: 1200px; margin: 0 auto; background: #ffffff; color: #333333;">
-        
-        {generar_hero_section_inline(titulo, subtitulo)}
-        
-        {generar_info_cards_inline(info, caracteristicas)}
-        
-        {generar_specs_table_inline(info)}
-        
-        {generar_feature_badge_inline(caracteristicas)}
-        
-        {generar_content_sections_inline(info, marketing_content)}
-        
-        {generar_benefits_section_inline()}
-        
-        {generar_cta_section_inline(info, config)}
-        
-        {generar_contact_footer_inline(config)}
-        
-    </div>
-</body>
-</html>"""
-    
-    return html_completo
+# La función generar_descripcion_detallada_html_premium ha sido movida y refactorizada
+# dentro de ai_handler.py y product_templates.py para permitir la selección dinámica de plantillas.
+# Este archivo ahora contiene solo las funciones de ayuda que son compartidas.

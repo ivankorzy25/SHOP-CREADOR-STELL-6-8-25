@@ -736,67 +736,61 @@ function getStockColor(stock) {
     return 'secondary';
 }
 
-function aplicarFiltros() {
+async function aplicarFiltros() {
     mostrarCargando();
-    
-    setTimeout(() => {
-        const familia = document.getElementById('filtroFamilia').value;
-        const marca = document.getElementById('filtroMarca').value;
-        const combustible = document.getElementById('filtroCombustible').value;
-        const stock = document.getElementById('filtroStock').value;
-        const cabina = document.getElementById('filtroCabina').value;
-        const tta = document.getElementById('filtroTTA').value;
-        const precioMin = parseFloat(document.getElementById('precioMin').value) || 0;
-        const precioMax = parseFloat(document.getElementById('precioMax').value) || Infinity;
-        const potenciaMin = parseFloat(document.getElementById('potenciaMin').value) || 0;
-        const unidadPotencia = document.getElementById('unidadPotencia').value;
-        const busqueda = document.getElementById('busquedaTexto').value.toLowerCase().trim();
 
-        $.fn.dataTable.ext.search.pop();
-        $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
-            const producto = productos[dataIndex];
-            if (!producto) return false;
+    const filtroPDFValue = document.getElementById('filtroPDF').value;
+    let has_pdf = null;
+    if (filtroPDFValue === 'Con PDF') {
+        has_pdf = true;
+    } else if (filtroPDFValue === 'Sin PDF') {
+        has_pdf = false;
+    }
 
-            if (familia && producto.familia !== familia) return false;
-            if (marca && producto.marca !== marca) return false;
-            if (combustible && producto.combustible !== combustible) return false;
-            if (stock && producto.stock !== stock) return false;
-            if (cabina && producto.cabina !== cabina) return false;
-            if (tta && producto.tta !== tta) return false;
-            
-            const precioProducto = producto.precio || 0;
-            if (precioProducto < precioMin || precioProducto > precioMax) return false;
-            
-            if (potenciaMin > 0) {
-                let potenciaMinWatts = potenciaMin;
-                
-                if (unidadPotencia) {
-                    potenciaMinWatts = normalizarPotencia(potenciaMin, unidadPotencia);
-                }
-                
-                if (producto.potenciaNormalizada < potenciaMinWatts) return false;
-            }
-            
-            if (busqueda) {
-                const textoProducto = (
-                    (producto.modelo || '') + ' ' + 
-                    (producto.descripcion || '') + ' ' +
-                    (producto.motor || '') + ' ' +
-                    (producto.familia || '') + ' ' +
-                    (producto.marca || '') + ' ' +
-                    (producto.caracteristicas || '') + ' ' +
-                    (producto.potenciaCompleta || '') + ' ' +
-                    (producto.potenciaFormateada || '')
-                ).toLowerCase();
-                if (!textoProducto.includes(busqueda)) return false;
-            }
-            return true;
+    const filters = {
+        familia: document.getElementById('filtroFamilia').value || null,
+        marca: document.getElementById('filtroMarca').value || null,
+        combustible: document.getElementById('filtroCombustible').value || null,
+        stock: document.getElementById('filtroStock').value || null,
+        has_cabina: document.getElementById('filtroCabina').value ? document.getElementById('filtroCabina').value === 'Si' : null,
+        has_tta: document.getElementById('filtroTTA').value ? document.getElementById('filtroTTA').value === 'Si' : null,
+        has_pdf: has_pdf,
+        precio_min: parseFloat(document.getElementById('precioMin').value) || null,
+        precio_max: parseFloat(document.getElementById('precioMax').value) || null,
+        potencia_min: parseFloat(document.getElementById('potenciaMin').value) || null,
+        search_text: document.getElementById('busquedaTexto').value.trim() || null,
+    };
+
+    try {
+        const response = await fetch('/api/products/products', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filters })
         });
 
-        dataTable.draw();
-        actualizarEstadisticasFiltradas();
+        if (!response.ok) {
+            throw new Error('Error en la respuesta del servidor');
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+            productos = data.products;
+            if (dataTable) {
+                dataTable.clear().rows.add(productos).draw();
+            } else {
+                inicializarTablaConDatos();
+            }
+            actualizarEstadisticasFiltradas();
+        } else {
+            mostrarNotificacion(data.error || 'Error al aplicar filtros', 'danger');
+        }
+    } catch (error) {
+        console.error('Error al aplicar filtros:', error);
+        mostrarNotificacion('No se pudieron aplicar los filtros.', 'danger');
+    } finally {
         ocultarCargando();
-    }, 250);
+    }
 }
 
 function actualizarEstadisticasFiltradas() {
@@ -820,6 +814,7 @@ function limpiarFiltros() {
     document.getElementById('filtroStock').value = '';
     document.getElementById('filtroCabina').value = '';
     document.getElementById('filtroTTA').value = '';
+    document.getElementById('filtroPDF').value = '';
     document.getElementById('unidadPotencia').value = '';
     document.getElementById('precioMin').value = '';
     document.getElementById('precioMax').value = '';

@@ -20,6 +20,7 @@ class FilterCriteria:
     search_text: Optional[str] = None
     has_cabina: Optional[bool] = None
     has_tta: Optional[bool] = None
+    has_pdf: Optional[bool] = None
     combustible: Optional[str] = None
     potencia_min: Optional[float] = None
     potencia_max: Optional[float] = None
@@ -117,6 +118,9 @@ class ProductFilters:
         if criteria.has_tta is not None:
             filter_dict['has_tta'] = criteria.has_tta
         
+        if criteria.has_pdf is not None:
+            filter_dict['has_pdf'] = criteria.has_pdf
+        
         if criteria.combustible:
             filter_dict['combustible'] = criteria.combustible
         
@@ -186,7 +190,7 @@ class ProductFilters:
         
         return filters
     
-    def save_filter(self, name: str, criteria: FilterCriteria = None):
+    def save_filter(self, name: str, criteria: Optional[FilterCriteria] = None):
         """Guarda un filtro con nombre"""
         if criteria is None:
             criteria = self.current_filter

@@ -1,0 +1,10 @@
+name: "Análisis Completo de Proyecto"
+description: "Analiza arquitectura, patrones y oportunidades de mejora"
+steps:
+  - prompt: |
+      Analiza la arquitectura completa de este proyecto:
+      1. Estructura de carpetas y módulos
+      2. Patrones de diseño utilizados
+      3. Dependencias y su propósito
+      4. Áreas de mejora potencial
+      5. Sugerencias de refactoring

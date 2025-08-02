@@ -1,0 +1,9 @@
+name: "Generación de Tests"
+description: "Genera tests unitarios y de integración"
+steps:
+  - prompt: |
+      Para el archivo actual, genera:
+      1. Tests unitarios con alta cobertura
+      2. Tests de casos edge
+      3. Mocks necesarios
+      4. Tests de integración si aplica

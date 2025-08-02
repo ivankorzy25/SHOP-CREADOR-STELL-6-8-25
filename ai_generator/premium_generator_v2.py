@@ -11,6 +11,17 @@ import fitz  # PyMuPDF
 import json
 from pathlib import Path
 import unicodedata
+import pytesseract
+from PIL import Image
+
+# Configurar la ruta de Tesseract-OCR
+# Es importante que el usuario tenga Tesseract instalado en esta ruta o en su PATH
+try:
+    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+except Exception:
+    # Si falla, es probable que no esté instalado en la ruta por defecto.
+    # El código intentará usarlo desde el PATH.
+    pass
 
 # ============================================================================
 # FUNCIONES DE LIMPIEZA DE TEXTO
@@ -205,25 +216,70 @@ def extraer_info_tecnica(row):
             
     return info
 
-def extraer_texto_pdf(pdf_url, print_callback=print):
-    """Extrae texto de un PDF desde una URL."""
+def extraer_contenido_pdf(pdf_url, print_callback=print):
+    """
+    Extrae texto y tablas de un PDF desde una URL, usando OCR como fallback.
+    Devuelve un diccionario con 'text' y 'tables'.
+    """
     try:
         response = requests.get(pdf_url, timeout=10)
         response.raise_for_status()
+        pdf_bytes = response.content
         
-        # Usar PyMuPDF que es más robusto
-        pdf_document = fitz.open(stream=response.content, filetype="pdf")
+        pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
         texto_completo = ""
+        tablas_markdown = []
+        texto_ocr = ""
+
         for page_num in range(pdf_document.page_count):
             page = pdf_document[page_num]
-            texto_completo += page.get_text()
+            
+            # 1. Extracción de texto nativo
+            texto_pagina = page.get_text("text")
+            texto_completo += texto_pagina
+            
+            # 2. Extracción de tablas
+            tabla_finder = page.find_tables()
+            if tabla_finder.tables:
+                print_callback(f"  -> Encontradas {len(tabla_finder.tables)} tablas en la página {page_num + 1}")
+                for i, tabla in enumerate(tabla_finder.tables):
+                    header = " | ".join(str(h) for h in tabla.header.names)
+                    alignment = " | ".join(["---"] * len(tabla.header.names))
+                    rows = "\n".join([" | ".join(str(cell) for cell in row) for row in tabla.extract()])
+                    markdown_table = f"Tabla {i+1}:\n{header}\n{alignment}\n{rows}\n"
+                    tablas_markdown.append(markdown_table)
+
+            # 3. Lógica de OCR como fallback
+            # Si la página tiene muy poco texto nativo, es probable que sea una imagen.
+            if len(texto_pagina.strip()) < 100:
+                print_callback(f"  -> ⚠️ Página {page_num + 1} con poco texto. Aplicando OCR...")
+                try:
+                    pix = page.get_pixmap(dpi=300)  # Renderizar a alta resolución
+                    img_bytes = pix.tobytes("png")
+                    imagen = Image.open(io.BytesIO(img_bytes))
+                    # Usar español como idioma para el OCR
+                    texto_ocr_pagina = pytesseract.image_to_string(imagen, lang='spa')
+                    if texto_ocr_pagina:
+                        print_callback(f"  -> ✅ OCR extrajo {len(texto_ocr_pagina)} caracteres de la página {page_num + 1}.")
+                        texto_ocr += texto_ocr_pagina + "\n"
+                except Exception as ocr_error:
+                    print_callback(f"  -> ❌ Error durante el OCR en la página {page_num + 1}: {ocr_error}")
+
         pdf_document.close()
         
-        if texto_completo.strip():
-            print_callback(f"✅ Texto extraído correctamente de {pdf_url}")
-            return texto_completo
+        # Combinar texto nativo con texto de OCR
+        texto_final_combinado = texto_completo + "\n\n--- OCR TEXT ---\n" + texto_ocr
+        
+        contenido_extraido = {
+            "text": texto_final_combinado,
+            "tables_markdown": "\n".join(tablas_markdown)
+        }
+
+        if texto_final_combinado.strip() or tablas_markdown:
+            print_callback(f"✅ Contenido extraído correctamente de {pdf_url} (con OCR si fue necesario).")
+            return contenido_extraido
         else:
-            print_callback(f"⚠️ El PDF en {pdf_url} parece estar vacío o ser una imagen.")
+            print_callback(f"⚠️ El PDF en {pdf_url} parece estar completamente vacío.")
             return None
 
     except requests.exceptions.RequestException as e:
@@ -367,11 +423,13 @@ def generar_info_cards_inline(info, caracteristicas):
     tipo_combustible = caracteristicas.get('tipo_combustible', 'diesel')
     icono_combustible = ICONOS_SVG.get(tipo_combustible, ICONOS_SVG['diesel'])
     
-    # Obtener valores limpios
-    potencia_kva = info.get('potencia_kva', '').strip()
-    potencia_kw = info.get('potencia_kw', '').strip()
-    motor = info.get('modelo_motor', info.get('motor', '')).strip()
-    consumo = info.get('consumo_combustible_75', info.get('consumo', '')).strip()
+    # Obtener valores limpios y asegurarse de que sean strings antes de usar .strip()
+    potencia_kva = str(info.get('potencia_kva', '') or '').strip()
+    potencia_kw = str(info.get('potencia_kw', '') or '').strip()
+    # Usar 'motor' o 'modelo_motor' consistentemente
+    motor = str(info.get('motor') or info.get('modelo_motor', '') or '').strip()
+    # Usar 'consumo' o 'consumo_combustible_75' consistentemente
+    consumo = str(info.get('consumo') or info.get('consumo_combustible_75', '') or '').strip()
     
     return f'''
         <!-- ESPECIFICACIONES PRINCIPALES -->
@@ -494,69 +552,96 @@ def generar_feature_badge_inline(caracteristicas):
     return ''
 
 def generar_content_sections_inline(info, marketing_content):
-    """Genera las secciones de contenido con estilos inline."""
-    # Usar contenido de marketing si está disponible
-    sections = []
-    
-    if marketing_content:
-        if marketing_content.get('puntos_clave_li'):
-            sections.append({
-                'title': 'POTENCIA Y RENDIMIENTO SUPERIOR',
-                'content': eliminar_tildes_y_especiales('. '.join(marketing_content['puntos_clave_li'][:2]))
-            })
-        if marketing_content.get('descripcion_detallada_p'):
-            sections.append({
-                'title': 'EFICIENCIA Y ECONOMIA OPERATIVA',
-                'content': eliminar_tildes_y_especiales(marketing_content['descripcion_detallada_p'][0])
-            })
-    
-    # Contenido por defecto si no hay marketing content
-    if not sections:
-        sections = [
-            {
-                'title': 'POTENCIA Y RENDIMIENTO SUPERIOR',
-                'content': f"Este equipo con {info.get('potencia_kva', 'alta')} KVA de potencia maxima esta disenado para brindar energia confiable y constante. Su motor {info.get('motor', 'de alta calidad')} garantiza un rendimiento optimo en las condiciones mas exigentes, ofreciendo la tranquilidad que su proyecto necesita."
-            },
-            {
-                'title': 'EFICIENCIA Y ECONOMIA OPERATIVA',
-                'content': f"Con un consumo optimizado, este generador ofrece una excelente economia operativa. El sistema de alimentacion garantiza combustion limpia y menores emisiones, ideal para aplicaciones que requieren sostenibilidad ambiental."
-            },
-            {
-                'title': 'CONFIABILIDAD GARANTIZADA',
-                'content': "Equipado con alternador de alta calidad y excitacion automatica AVR, este generador asegura un suministro electrico estable y sin fluctuaciones. El panel de control digital y las protecciones de motor integradas garantizan la seguridad de sus equipos conectados."
-            }
-        ]
-    
-    # Agregar aplicaciones si están disponibles
-    if marketing_content.get('aplicaciones_ideales_li'):
-        apps_html = '<ul style="list-style: none; padding: 0; margin: 10px 0;">'
-        for app in marketing_content['aplicaciones_ideales_li']:
-            apps_html += f'''
-                    <li style="padding: 8px 0; display: flex; align-items: start; gap: 10px;">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="#ff6600" style="min-width: 20px; margin-top: 2px;"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
-                        <span>{eliminar_tildes_y_especiales(app)}</span>
-                    </li>'''
-        apps_html += '</ul>'
-        
-        sections.append({
-            'title': 'APLICACIONES VERSATILES',
-            'content': apps_html
-        })
-    
-    # Generar HTML
+    """Genera las secciones de contenido dinámicamente desde el JSON plano de la IA."""
     html = ""
-    for section in sections:
+    
+    # 1. Puntos Clave (Highlights) con iconos dinámicos
+    puntos_clave = []
+    for i in range(1, 4):
+        texto = marketing_content.get(f'punto_clave_texto_{i}')
+        icono = marketing_content.get(f'punto_clave_icono_{i}')
+        if texto and icono:
+            puntos_clave.append({'texto': texto, 'icono': icono})
+
+    if puntos_clave:
+        items_html = ""
+        for punto in puntos_clave:
+            icono_svg = ICONOS_SVG.get(punto.get('icono', 'check'), ICONOS_SVG['check'])
+            items_html += f'''
+                <li style="padding: 8px 0; display: flex; align-items: start; gap: 10px;">
+                    <div style="min-width: 20px; margin-top: 3px;">{icono_svg.replace('width="28"', 'width="20"').replace('height="28"', 'height="20"')}</div>
+                    <span>{eliminar_tildes_y_especiales(punto.get('texto', ''))}</span>
+                </li>'''
+        
         html += f'''
-        <!-- SECCIONES DE CONTENIDO -->
+        <div class="content-section" style="margin: 30px; padding: 30px; background: #fff3e0; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border-left: 4px solid #ff6600;">
+            <h3 style="color: #D32F2F; font-size: 24px; margin: 0 0 15px 0; font-weight: 700;">PUNTOS CLAVE</h3>
+            <ul style="list-style: none; padding: 0; margin: 0; font-size: 16px; line-height: 1.8; color: #555;">
+                {items_html}
+            </ul>
+        </div>'''
+
+    # 2. Descripción Detallada (Párrafos dinámicos)
+    secciones_descripcion = []
+    if marketing_content.get('desc_titulo_1') and marketing_content.get('desc_parrafo_1'):
+        secciones_descripcion.append({
+            'titulo': marketing_content['desc_titulo_1'],
+            'parrafo': marketing_content['desc_parrafo_1']
+        })
+    if marketing_content.get('desc_titulo_2') and marketing_content.get('desc_parrafo_2'):
+        secciones_descripcion.append({
+            'titulo': marketing_content['desc_titulo_2'],
+            'parrafo': marketing_content['desc_parrafo_2']
+        })
+
+    if not secciones_descripcion:
+        secciones_descripcion.append({
+            'titulo': 'POTENCIA Y RENDIMIENTO SUPERIOR',
+            'parrafo': f"Este equipo con {info.get('potencia_kva', 'alta')} KVA de potencia maxima esta disenado para brindar energia confiable y constante."
+        })
+
+    for section in secciones_descripcion:
+        html += f'''
         <div class="content-section" style="margin: 30px; padding: 30px; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border-left: 4px solid #FFC107;">
             <h3 style="color: #D32F2F; font-size: 24px; margin: 0 0 15px 0; font-weight: 700;">
-                {section['title']}
+                {eliminar_tildes_y_especiales(section.get('titulo', 'CARACTERISTICAS')).upper()}
             </h3>
             <div style="font-size: 16px; line-height: 1.8; color: #555;">
-                {section['content']}
+                {eliminar_tildes_y_especiales(section.get('parrafo', ''))}
             </div>
         </div>'''
-    
+
+    # 3. Aplicaciones Ideales
+    aplicaciones = []
+    if marketing_content.get('app_texto_1') and marketing_content.get('app_icono_1'):
+        aplicaciones.append({
+            'texto': marketing_content['app_texto_1'],
+            'icono': marketing_content['app_icono_1']
+        })
+    if marketing_content.get('app_texto_2') and marketing_content.get('app_icono_2'):
+        aplicaciones.append({
+            'texto': marketing_content['app_texto_2'],
+            'icono': marketing_content['app_icono_2']
+        })
+
+    if aplicaciones:
+        apps_html = ""
+        for app in aplicaciones:
+            icono_svg = ICONOS_SVG.get(app.get('icono', 'dot'), ICONOS_SVG['dot'])
+            apps_html += f'''
+                <li style="padding: 8px 0; display: flex; align-items: start; gap: 10px;">
+                    <div style="min-width: 20px; margin-top: 3px;">{icono_svg}</div>
+                    <span>{eliminar_tildes_y_especiales(app.get('texto', ''))}</span>
+                </li>'''
+        
+        html += f'''
+        <div class="content-section" style="margin: 30px; padding: 30px; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border-left: 4px solid #4caf50;">
+            <h3 style="color: #D32F2F; font-size: 24px; margin: 0 0 15px 0; font-weight: 700;">APLICACIONES IDEALES</h3>
+            <ul style="list-style: none; padding: 0; margin: 0; font-size: 16px; line-height: 1.8; color: #555;">
+                {apps_html}
+            </ul>
+        </div>'''
+        
     return html
 
 def generar_benefits_section_inline():
@@ -809,18 +894,18 @@ def generar_descripcion_detallada_html_premium(row, config, modelo_ia=None, prin
     """
     # 1. Extraer y procesar datos del producto
     info_inicial = extraer_info_tecnica(row)
-    info = info_inicial.copy() # Usar datos base como fallback
-    
+    info = info_inicial.copy()
+
     pdf_url = info_inicial.get('pdf_url', '')
-    texto_pdf = None
+    contenido_pdf = None
     if pdf_url and str(pdf_url).lower() not in ['nan', 'none', '']:
         if not pdf_url.startswith('http'):
             pdf_url = f"https://storage.googleapis.com/fichas_tecnicas/{pdf_url}"
-        texto_pdf = extraer_texto_pdf(pdf_url, print_callback)
+        contenido_pdf = extraer_contenido_pdf(pdf_url, print_callback)
 
     marketing_content = {}
     # 2. Enriquecer datos con IA si es posible
-    if texto_pdf and modelo_ia:
+    if contenido_pdf and modelo_ia:
         print("🤖 Iniciando extracción y generación de contenido con IA...")
         try:
             # Cargar prompts
@@ -830,7 +915,8 @@ def generar_descripcion_detallada_html_premium(row, config, modelo_ia=None, prin
 
             # Fase 1: Extracción de datos
             prompt_extract = prompts['prompt_extract'].format(
-                pdf_text=texto_pdf[:4000], # Limitar para no exceder tokens
+                pdf_text=contenido_pdf['text'][:4000],
+                pdf_tables_as_markdown=contenido_pdf['tables_markdown'],
                 nombre=info.get('nombre'),
                 familia=info.get('familia'),
                 modelo=info.get('modelo'),
@@ -854,7 +940,8 @@ def generar_descripcion_detallada_html_premium(row, config, modelo_ia=None, prin
         except Exception as e:
             print(f"⚠️ Error en el proceso con IA, se usarán datos básicos y contenido por defecto: {e}")
             
-    caracteristicas = validar_caracteristicas_producto(info, texto_pdf)
+    texto_completo_pdf = contenido_pdf['text'] if contenido_pdf else ""
+    caracteristicas = validar_caracteristicas_producto(info, texto_completo_pdf)
     
     # Integrar el contenido de marketing en info para que esté disponible en todas las funciones
     if marketing_content:

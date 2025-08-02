@@ -1,0 +1,9 @@
+name: "Documentación Completa"
+description: "Genera documentación técnica y de usuario"
+steps:
+  - prompt: |
+      Genera documentación completa:
+      1. README con ejemplos de uso
+      2. Documentación de API
+      3. Guías de contribución
+      4. Diagramas de arquitectura en Mermaid

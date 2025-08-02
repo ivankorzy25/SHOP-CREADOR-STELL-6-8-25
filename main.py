@@ -29,14 +29,26 @@ from ai_generator.prompt_manager import PromptManager
 from ai_generator.editor_interface import EditorInterface
 from ai_generator.prompt_assistant import PromptAssistant
 
-# Configuración de logging
+# Configuración de logging con soporte UTF-8
+import io
+
+# Crear handler para archivo con UTF-8
+file_handler = logging.FileHandler('logs/stel_shop.log', encoding='utf-8')
+file_handler.setLevel(logging.INFO)
+
+# Crear handler para consola con UTF-8
+console_handler = logging.StreamHandler(io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8'))
+console_handler.setLevel(logging.INFO)
+
+# Configurar formato
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+console_handler.setFormatter(formatter)
+
+# Configurar logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('logs/stel_shop.log'),
-        logging.StreamHandler()
-    ]
+    handlers=[file_handler, console_handler]
 )
 
 logger = logging.getLogger(__name__)
@@ -176,47 +188,21 @@ def connect_database():
 def get_products():
     """Obtener productos con filtros"""
     try:
-        # Verificar conexión primero
         if not app_state['db_connected']:
-            return jsonify({
-                'success': False, 
-                'error': 'No hay conexión a la base de datos. Conecta primero.'
-            })
-        
-        filters = request.json.get('filters', {})
-        sort = request.json.get('sort', {})
-        
+            return jsonify({'success': False, 'error': 'No hay conexión a la base de datos. Conecta primero.'})
+
+        data = request.get_json() or {}
+        filters = data.get('filters', {})
         logger.info(f"API /products: Filtros recibidos del frontend: {filters}")
-        logger.info(f"API /products: Ordenamiento recibido del frontend: {sort}")
+
+        clean_filters = {k: v for k, v in filters.items() if v is not None and v != ''}
         
-        # Limpiar filtros vacíos
-        clean_filters = {k: v for k, v in filters.items() if v is not None and v != '' and v != []}
-        
-        # Aplicar filtros si existen
-        if clean_filters:
-            try:
-                criteria = FilterCriteria(**clean_filters)
-                logger.info(f"API /products: FilterCriteria creado: {criteria.__dict__}")
-                df = product_manager.apply_filter(criteria)
-            except Exception as filter_error:
-                logger.error(f"Error creando FilterCriteria: {filter_error}")
-                # Fallback: cargar todos los productos
-                df = product_manager.refresh_products(use_filter=False)
-        else:
-            logger.info("API /products: Sin filtros, cargando todos los productos")
-            df = product_manager.refresh_products(use_filter=False)
+        criteria = FilterCriteria(**clean_filters)
+        logger.info(f"API /products: FilterCriteria creado: {criteria.__dict__}")
+        df = product_manager.apply_filter(criteria)
         
         logger.info(f"API /products: Productos devueltos después de filtro/refresh: {len(df)} registros")
         
-        if df.empty:
-            logger.warning("API /products: DataFrame vacío devuelto")
-            return jsonify({
-                'success': True,
-                'products': [],
-                'message': 'No se encontraron productos con los filtros aplicados'
-            })
-        
-        # Convertir a lista de diccionarios
         products = df.to_dict('records')
         
         return jsonify({
@@ -230,10 +216,7 @@ def get_products():
         logger.error(f"Error obteniendo productos: {e}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
-        return jsonify({
-            'success': False, 
-            'error': f'Error interno: {str(e)}'
-        })
+        return jsonify({'success': False, 'error': f'Error interno: {str(e)}'})
 
 @app.route('/api/products/filter-options')
 def get_filter_options():
@@ -253,7 +236,8 @@ def get_filter_options():
 def search_products():
     """Búsqueda rápida de productos"""
     try:
-        query = request.json.get('query', '')
+        data = request.get_json() or {}
+        query = data.get('query', '')
         df = product_manager.search_products(query)
         
         return jsonify({
@@ -276,7 +260,8 @@ def get_statistics():
 def export_selection():
     """Exportar productos seleccionados"""
     try:
-        format_type = request.json.get('format', 'excel')
+        data = request.get_json() or {}
+        format_type = data.get('format', 'excel')
         filepath = product_manager.export_selected_products(format_type)
         
         if filepath:
@@ -306,7 +291,8 @@ def download_export(filename):
 def debug_filter():
     """Debug de filtros"""
     try:
-        filters = request.json.get('filters', {})
+        data = request.get_json() or {}
+        filters = data.get('filters', {})
         criteria = FilterCriteria(**filters)
         filter_dict = product_manager.filters.apply_filter(criteria)
         
@@ -355,8 +341,9 @@ def close_browser():
 def process_products():
     """Procesar lista de productos"""
     try:
-        products = request.json.get('products', [])
-        settings = request.json.get('settings', {})
+        data = request.get_json() or {}
+        products = data.get('products', [])
+        settings = data.get('settings', {})
         
         if not products:
             return jsonify({'success': False, 'error': 'No hay productos'})
@@ -381,12 +368,7 @@ def process_products():
                 }
             else:
                 # Sin IA, usar generación básica
-                from ai_generator.ai_handler import AIHandler
-                temp_handler = AIHandler()
-                descripcion_detallada = temp_handler._generate_fallback_description(
-                    product['row_data'], 
-                    get_contact_config()
-                )
+                descripcion_detallada = generate_fallback_preview(product['row_data'])
                 
                 descripcion = generate_short_description(product['row_data'])
                 
@@ -447,7 +429,8 @@ def stop_navigation():
 def validate_api_key():
     """Validar API key de Google Gemini"""
     try:
-        api_key = request.json.get('api_key')
+        data = request.get_json() or {}
+        api_key = data.get('api_key')
         
         # Si no se proporciona una clave, se usa la que está por defecto en el handler
         if not api_key:
@@ -491,7 +474,7 @@ def get_version(version_id):
 def save_version():
     """Guardar nueva versión de prompt (alias para el editor)"""
     try:
-        data = request.json
+        data = request.get_json() or {}
         version = prompt_manager.save_new_version(
             data['prompt'],
             data['name'],
@@ -505,7 +488,7 @@ def save_version():
 def update_base():
     """Actualizar el prompt base"""
     try:
-        data = request.json
+        data = request.get_json() or {}
         prompt_text = data.get('prompt')
         description = data.get('description', 'Prompt base actualizado desde el editor')
         
@@ -522,29 +505,31 @@ def update_base():
 def extract_pdf_content():
     """Extrae contenido de un PDF para usar en la generación"""
     try:
-        data = request.json
+        data = request.get_json() or {}
         pdf_url = data.get('pdf_url')
         
         if not pdf_url:
             return jsonify({'success': False, 'error': 'No se proporcionó URL del PDF'})
         
-        # Importar la función de extracción del módulo premium_generator_v2
-        from ai_generator.premium_generator_v2 import extraer_texto_pdf
+        # Importar la nueva función de extracción estructurada
+        from ai_generator.premium_generator_v2 import extraer_contenido_pdf
         
-        # Extraer texto
-        texto_pdf = extraer_texto_pdf(pdf_url)
+        # Extraer contenido (texto y tablas)
+        contenido_pdf = extraer_contenido_pdf(pdf_url)
         
-        if texto_pdf:
-            # También extraer datos técnicos si es posible
+        if contenido_pdf:
+            texto_pdf = contenido_pdf.get('text', '')
+            tablas_md = contenido_pdf.get('tables_markdown', '')
+
+            # Extraer datos técnicos con regex como fallback para la UI
             from ai_generator.premium_generator_v2 import extraer_datos_tecnicos_del_pdf
-            
-            # Crear un diccionario vacío para los datos actuales
             info_actual = {}
             datos_tecnicos = extraer_datos_tecnicos_del_pdf(texto_pdf, info_actual)
             
             return jsonify({
                 'success': True,
                 'content': texto_pdf[:5000],  # Limitar para no sobrecargar
+                'tables': tablas_md, # Devolver tablas para posible uso futuro en UI
                 'technical_data': datos_tecnicos,
                 'full_length': len(texto_pdf)
             })
@@ -562,7 +547,7 @@ def extract_pdf_content():
 def test_prompt_with_product():
     """Prueba un prompt temporal con un producto específico"""
     try:
-        data = request.json
+        data = request.get_json() or {}
         product_data = data.get('product')
         temp_prompt = data.get('prompt')
         api_key = data.get('api_key')
@@ -679,7 +664,7 @@ def test_prompt_with_product():
 def ai_prompt_assistant():
     """IA que ayuda a mejorar prompts"""
     try:
-        data = request.json
+        data = request.get_json() or {}
         api_key = data.get('api_key')
         
         # Inicializar modelo si es necesario
@@ -720,7 +705,7 @@ def ai_prompt_assistant():
 def compare_prompt_versions():
     """Compara dos versiones de prompts con un producto de ejemplo"""
     try:
-        data = request.json
+        data = request.get_json() or {}
         version1_id = data.get('version1')
         version2_id = data.get('version2')
         product_data = data.get('product')
@@ -758,7 +743,7 @@ def compare_prompt_versions():
 def convert_html_for_stelorder():
     """Convierte HTML para compatibilidad con Stelorder"""
     try:
-        data = request.json
+        data = request.get_json() or {}
         html_content = data.get('html')
         
         # Aquí integrarías tu conversor de estilos

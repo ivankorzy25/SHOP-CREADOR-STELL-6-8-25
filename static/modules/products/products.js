@@ -179,8 +179,12 @@ async function refreshProducts() {
             filteredProducts = filteredProducts.filter(p => p.marca === moduleState.filters.marca);
         }
         
-        if (moduleState.filters.stock) {
-            filteredProducts = filteredProducts.filter(p => p.stock === moduleState.filters.stock);
+        if (moduleState.filters.pdf) {
+            if (moduleState.filters.pdf === 'con_pdf') {
+                filteredProducts = filteredProducts.filter(p => p.URL_PDF && p.URL_PDF.trim() !== '');
+            } else if (moduleState.filters.pdf === 'sin_pdf') {
+                filteredProducts = filteredProducts.filter(p => !p.URL_PDF || p.URL_PDF.trim() === '');
+            }
         }
         
         if (moduleState.filters.combustible) {
@@ -242,7 +246,7 @@ function applyFilters() {
     moduleState.filters = {
         familia: document.getElementById('filter-familia').value,
         marca: document.getElementById('filter-marca').value,
-        stock: document.getElementById('filter-stock').value,
+        pdf: document.getElementById('filter-pdf').value,
         precio_min: parseFloat(document.getElementById('filter-precio-min').value) || null,
         precio_max: parseFloat(document.getElementById('filter-precio-max').value) || null,
         potencia_min: parseFloat(document.getElementById('filter-potencia-min').value) || null,
@@ -271,7 +275,7 @@ function clearFilters() {
     // Limpiar todos los campos de filtro
     document.getElementById('filter-familia').value = '';
     document.getElementById('filter-marca').value = '';
-    document.getElementById('filter-stock').value = '';
+    document.getElementById('filter-pdf').value = '';
     document.getElementById('filter-precio-min').value = '';
     document.getElementById('filter-precio-max').value = '';
     document.getElementById('filter-potencia-min').value = '';
@@ -333,7 +337,10 @@ function updateFilterSummary() {
     
     if (moduleState.filters.familia) parts.push(`Familia: ${moduleState.filters.familia}`);
     if (moduleState.filters.marca) parts.push(`Marca: ${moduleState.filters.marca}`);
-    if (moduleState.filters.stock) parts.push(`Stock: ${moduleState.filters.stock}`);
+    if (moduleState.filters.pdf) {
+        if (moduleState.filters.pdf === 'con_pdf') parts.push(`Ficha PDF: Sí`);
+        if (moduleState.filters.pdf === 'sin_pdf') parts.push(`Ficha PDF: No`);
+    }
     if (moduleState.filters.precio_min || moduleState.filters.precio_max) {
         let precio = 'Precio: ';
         if (moduleState.filters.precio_min && moduleState.filters.precio_max) {

@@ -16,7 +16,7 @@ from .data_validator import DataValidator
 class DatabaseHandler:
     """Maneja la conexión y operaciones con MySQL"""
     
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or self._load_config_from_file()
         self.logger = logging.getLogger(__name__)
         self.connector = Connector()
@@ -156,11 +156,11 @@ class DatabaseHandler:
     def get_products_filtered(self, filters: Dict[str, Any]) -> pd.DataFrame:
         """Obtiene productos con filtros aplicados"""
         connection = None
+        base_query = f"SELECT * FROM {self.config.get('table', 'default_table')} WHERE 1=1 "
+        params: List[Any] = []
+        
         try:
             connection = self.get_connection()
-            # Base query con filtros para excluir filas inválidas
-            base_query = f"""SELECT * FROM {self.config['table']} WHERE 1=1 """
-            params = []
             self.logger.info(f"get_products_filtered: Filtros recibidos: {filters}")
             
             # Construir query con filtros
@@ -224,6 +224,13 @@ class DatabaseHandler:
                 else:
                     base_query += " AND (TTA_Incluido = 'No' OR TTA_Incluido = '0' OR TTA_Incluido IS NULL)"
             
+            # Filtro de PDF
+            if filters.get('has_pdf') is not None:
+                if filters['has_pdf']:
+                    base_query += " AND (URL_PDF IS NOT NULL AND URL_PDF != '')"
+                else:
+                    base_query += " AND (URL_PDF IS NULL OR URL_PDF = '')"
+            
             # Búsqueda de texto
             if filters.get('search_text'):
                 search = f"%{filters['search_text']}%"
@@ -245,121 +252,6 @@ class DatabaseHandler:
             if filters.get('limit') and isinstance(filters['limit'], int) and filters['limit'] > 0:
                 base_query += f" LIMIT {filters['limit']}"
             
-            self.logger.info(f"Ejecutando query: {base_query}")
-            self.logger.info(f"Parámetros: {params}")
-            df = pd.read_sql(base_query, connection, params=params)
-            
-            # Aplicar el mismo filtro que en get_all_products
-            if not df.empty:
-                # Remover filas donde SKU sea igual al nombre de la columna
-                df = df[df['SKU'] != 'SKU']
-                
-                # Remover cualquier fila donde múltiples campos sean iguales a sus nombres de columna
-                mask = True
-                for col in ['SKU', 'Descripción', 'Marca', 'Familia']:
-                    if col in df.columns:
-                        mask &= (df[col] != col)
-                df = df[mask]
-                
-                # Reset index después del filtrado
-                df = df.reset_index(drop=True)
-            
-            self.logger.info(f"Filtrados {len(df)} productos (después de filtrar datos inválidos)")
-            return df
-        except Exception as e:
-            self.logger.error(f"Error en consulta filtrada: {e}")
-            self.logger.error(f"Query: {base_query}")
-            self.logger.error(f"Params: {params}")
-            return pd.DataFrame()
-        finally:
-            if connection:
-                connection.close()
-        params = []
-        self.logger.info(f"get_products_filtered: Filtros recibidos: {filters}")
-        
-        # Construir query con filtros
-        if filters.get('familia'):
-            base_query += " AND Familia = %s"
-            params.append(filters['familia'])
-        
-        if filters.get('marca'):
-            base_query += " AND Marca = %s"
-            params.append(filters['marca'])
-        
-        # Filtros de stock mejorados
-        if filters.get('stock_min') is not None:
-            base_query += " AND CAST(Stock AS SIGNED) >= %s"
-            params.append(filters['stock_min'])
-
-        if filters.get('stock_max') is not None:
-            base_query += " AND CAST(Stock AS SIGNED) <= %s"
-            params.append(filters['stock_max'])
-        
-        # Filtros especiales de stock
-        if filters.get('stock_disponible'):
-            base_query += " AND (Stock = 'Disponible' OR CAST(Stock AS SIGNED) > 0)"
-        
-        if filters.get('stock_consultar'):
-            base_query += " AND Stock = 'Consultar'"
-        
-        # Filtros de precio
-        if filters.get('precio_min') is not None:
-            base_query += " AND CAST(Precio_USD_con_IVA AS DECIMAL(10,2)) >= %s"
-            params.append(filters['precio_min'])
-        
-        if filters.get('precio_max') is not None:
-            base_query += " AND CAST(Precio_USD_con_IVA AS DECIMAL(10,2)) <= %s"
-            params.append(filters['precio_max'])
-        
-        # Filtros de potencia
-        if filters.get('potencia_min') is not None:
-            base_query += " AND CAST(REGEXP_REPLACE(Potencia, '[^0-9.]', '') AS DECIMAL(10,2)) >= %s"
-            params.append(filters['potencia_min'])
-        
-        if filters.get('potencia_max') is not None:
-            base_query += " AND CAST(REGEXP_REPLACE(Potencia, '[^0-9.]', '') AS DECIMAL(10,2)) <= %s"
-            params.append(filters['potencia_max'])
-        
-        # Filtro de combustible
-        if filters.get('combustible'):
-            base_query += " AND Combustible LIKE %s"
-            params.append(f"%{filters['combustible']}%")
-        
-        # Filtros de cabina y TTA
-        if filters.get('has_cabina') is not None:
-            if filters['has_cabina']:
-                base_query += " AND (Cabina IS NOT NULL AND Cabina != '' AND Cabina != 'Sin Cabina')"
-            else:
-                base_query += " AND (Cabina IS NULL OR Cabina = '' OR Cabina = 'Sin Cabina')"
-        
-        if filters.get('has_tta') is not None:
-            if filters['has_tta']:
-                base_query += " AND (TTA_Incluido = 'Sí' OR TTA_Incluido = 'Si' OR TTA_Incluido = '1')"
-            else:
-                base_query += " AND (TTA_Incluido = 'No' OR TTA_Incluido = '0' OR TTA_Incluido IS NULL)"
-        
-        # Búsqueda de texto
-        if filters.get('search_text'):
-            search = f"%{filters['search_text']}%"
-            base_query += " AND (SKU LIKE %s OR Descripción LIKE %s OR Modelo LIKE %s OR Marca LIKE %s)"
-            params.extend([search, search, search, search])
-        
-        # Ordenamiento
-        order_by = filters.get('order_by', 'SKU')
-        order_dir = filters.get('order_dir', 'ASC')
-        
-        # Validar columna de ordenamiento
-        valid_columns = ['SKU', 'Descripción', 'Marca', 'Familia', 'Stock', 'Precio_USD_con_IVA', 'Potencia']
-        if order_by in valid_columns:
-            base_query += f" ORDER BY {order_by} {order_dir}"
-        else:
-            base_query += " ORDER BY SKU ASC"
-        
-        # Límite
-        if filters.get('limit') and isinstance(filters['limit'], int) and filters['limit'] > 0:
-            base_query += f" LIMIT {filters['limit']}"
-        
-        try:
             self.logger.info(f"Ejecutando query: {base_query}")
             self.logger.info(f"Parámetros: {params}")
             df = pd.read_sql(base_query, connection, params=params)
@@ -442,10 +334,12 @@ class DatabaseHandler:
         try:
             connection = self.get_connection()
             # Total de productos
-            query = f"SELECT COUNT(*) as count FROM {self.config['table']}"
+            query = f"SELECT COUNT(*) as count FROM {self.config.get('table', 'default_table')}"
             with connection.cursor() as cursor:
                 cursor.execute(query)
-                stats['total_products'] = cursor.fetchone()['count']
+                result = cursor.fetchone()
+                if result:
+                    stats['total_products'] = result.get('count', 0)
             
             # Familias únicas
             stats['total_families'] = len(self.get_distinct_values('Familia'))
@@ -454,19 +348,24 @@ class DatabaseHandler:
             stats['total_brands'] = len(self.get_distinct_values('Marca'))
             
             # Productos con/sin stock
-            query = f"SELECT COUNT(*) as count FROM {self.config['table']} WHERE Stock > 0"
+            query = f"SELECT COUNT(*) as count FROM {self.config.get('table', 'default_table')} WHERE Stock > 0"
             with connection.cursor() as cursor:
                 cursor.execute(query)
-                stats['products_with_stock'] = cursor.fetchone()['count']
+                result = cursor.fetchone()
+                if result:
+                    stats['products_with_stock'] = result.get('count', 0)
             
             stats['products_without_stock'] = stats['total_products'] - stats['products_with_stock']
             
             # Precio promedio
-            query = f"SELECT AVG(Precio_USD_con_IVA) as avg_price FROM {self.config['table']} WHERE Precio_USD_con_IVA > 0"
+            query = f"SELECT AVG(Precio_USD_con_IVA) as avg_price FROM {self.config.get('table', 'default_table')} WHERE Precio_USD_con_IVA > 0"
             with connection.cursor() as cursor:
                 cursor.execute(query)
                 result = cursor.fetchone()
-                stats['average_price'] = round(result['avg_price'], 2) if result['avg_price'] else 0
+                if result and result.get('avg_price') is not None:
+                    stats['average_price'] = round(float(result['avg_price']), 2)
+                else:
+                    stats['average_price'] = 0
             
             stats['last_update'] = datetime.now().isoformat()
             
@@ -483,7 +382,7 @@ class DatabaseHandler:
         connection = None
         try:
             connection = self.get_connection()
-            query = f"UPDATE {self.config['table']} SET {field} = %s WHERE SKU = %s"
+            query = f"UPDATE {self.config.get('table', 'default_table')} SET {field} = %s WHERE SKU = %s"
             with connection.cursor() as cursor:
                 cursor.execute(query, (value, sku))
                 connection.commit()
@@ -507,7 +406,7 @@ class DatabaseHandler:
             with connection.cursor() as cursor:
                 for update in updates:
                     try:
-                        query = f"UPDATE {self.config['table']} SET {update['field']} = %s WHERE SKU = %s"
+                        query = f"UPDATE {self.config.get('table', 'default_table')} SET {update['field']} = %s WHERE SKU = %s"
                         cursor.execute(query, (update['value'], update['sku']))
                         if cursor.rowcount > 0:
                             results['success'] += 1

@@ -4,7 +4,6 @@ Módulo para definir plantillas HTML específicas para cada categoría de produc
 """
 from .premium_generator_v2 import (
     ICONOS_SVG,
-    eliminar_tildes_y_especiales,
     generar_hero_section_inline,
     generar_specs_table_inline,
     generar_feature_badge_inline,
@@ -30,7 +29,7 @@ def generar_html_generador(info, marketing_content, caracteristicas, config):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{eliminar_tildes_y_especiales(titulo)} - Vista Previa</title>
+    <title>{titulo} - Vista Previa</title>
     {generar_css_hover_effects()}
 </head>
 <body style="margin: 0; padding: 0; background: #f5f5f5;">
@@ -280,6 +279,92 @@ def generar_html_chipeadora(info, marketing_content, caracteristicas, config):
 
     return generar_html_con_estructura_base(titulo, subtitulo, info_cards, info, marketing_content, config)
 
+def generar_html_motor_estacionario(info, marketing_content, caracteristicas, config):
+    """Genera HTML para motores estacionarios."""
+    titulo = marketing_content.get('titulo_h1', info.get('nombre', 'Motor Estacionario'))
+    subtitulo = marketing_content.get('subtitulo_p', 'Potencia versátil para sus proyectos')
+
+    info_cards = f"""
+    <div style="padding: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+        <div class="card-hover" style="background: #f8f9fa; border-radius: 12px; padding: 25px; border-left: 4px solid #ff6600;">
+            <p>Potencia</p>
+            <p style="font-size: 24px; font-weight: 700;">{info.get('potencia_hp', 'N/D')} HP</p>
+        </div>
+        <div class="card-hover" style="background: #f8f9fa; border-radius: 12px; padding: 25px; border-left: 4px solid #17a2b8;">
+            <p>Tipo de Arranque</p>
+            <p style="font-size: 20px; font-weight: 700;">{info.get('tipo_arranque', 'Manual')}</p>
+        </div>
+        <div class="card-hover" style="background: #f8f9fa; border-radius: 12px; padding: 25px; border-left: 4px solid #28a745;">
+            <p>Eje de Salida</p>
+            <p style="font-size: 20px; font-weight: 700;">{info.get('eje_salida', 'Horizontal')}</p>
+        </div>
+    </div>
+    """
+
+    return generar_html_con_estructura_base(titulo, subtitulo, info_cards, info, marketing_content, config)
+
+def generar_html_equipo_construccion(info, marketing_content, caracteristicas, config):
+    """Genera HTML para equipos de construcción."""
+    titulo = marketing_content.get('titulo_h1', info.get('nombre', 'Equipo de Construcción'))
+    subtitulo = marketing_content.get('subtitulo_p', 'Herramienta profesional para obras')
+
+    # Determinar tipo de equipo para mostrar specs relevantes
+    tipo_equipo = info.get('tipo_equipo_construccion', '').lower()
+    
+    info_cards = ""
+    if 'vibr' in tipo_equipo:
+        info_cards = f"""
+        <div style="padding: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+            <div class="card-hover" style="background: #f8f9fa; border-radius: 12px; padding: 25px; border-left: 4px solid #ff6600;">
+                <p>Frecuencia</p>
+                <p style="font-size: 24px; font-weight: 700;">{info.get('frecuencia_hz', 'N/D')} Hz</p>
+            </div>
+            <div class="card-hover" style="background: #f8f9fa; border-radius: 12px; padding: 25px; border-left: 4px solid #17a2b8;">
+                <p>Fuerza de Impacto</p>
+                <p style="font-size: 20px; font-weight: 700;">{info.get('fuerza_impacto_kg', 'N/D')} Kg</p>
+            </div>
+        </div>
+        """
+    elif 'cortadora' in tipo_equipo:
+        info_cards = f"""
+        <div style="padding: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+            <div class="card-hover" style="background: #f8f9fa; border-radius: 12px; padding: 25px; border-left: 4px solid #ff6600;">
+                <p>Profundidad de Corte</p>
+                <p style="font-size: 24px; font-weight: 700;">{info.get('profundidad_corte_mm', 'N/D')} mm</p>
+            </div>
+            <div class="card-hover" style="background: #f8f9fa; border-radius: 12px; padding: 25px; border-left: 4px solid #17a2b8;">
+                <p>Diámetro de Disco</p>
+                <p style="font-size: 20px; font-weight: 700;">{info.get('diametro_disco', 'N/D')}"</p>
+            </div>
+        </div>
+        """
+
+    return generar_html_con_estructura_base(titulo, subtitulo, info_cards, info, marketing_content, config)
+
+def generar_html_generador_inverter(info, marketing_content, caracteristicas, config):
+    """Genera HTML para generadores inverter."""
+    titulo = marketing_content.get('titulo_h1', info.get('nombre', 'Generador Inverter'))
+    subtitulo = marketing_content.get('subtitulo_p', 'Tecnología silenciosa y eficiente')
+
+    info_cards = f"""
+    <div style="padding: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+        <div class="card-hover" style="background: #f8f9fa; border-radius: 12px; padding: 25px; border-left: 4px solid #4caf50;">
+            <p>Tecnología</p>
+            <p style="font-size: 24px; font-weight: 700;">INVERTER</p>
+        </div>
+        <div class="card-hover" style="background: #f8f9fa; border-radius: 12px; padding: 25px; border-left: 4px solid #ff6600;">
+            <p>Potencia Máxima</p>
+            <p style="font-size: 24px; font-weight: 700;">{info.get('potencia_max_w', 'N/D')} W</p>
+        </div>
+        <div class="card-hover" style="background: #f8f9fa; border-radius: 12px; padding: 25px; border-left: 4px solid #2196f3;">
+            <p>Nivel de Ruido</p>
+            <p style="font-size: 20px; font-weight: 700;">Ultra Silencioso</p>
+        </div>
+    </div>
+    """
+
+    return generar_html_con_estructura_base(titulo, subtitulo, info_cards, info, marketing_content, config)
+
 def generar_html_con_estructura_base(titulo, subtitulo, info_cards, info, marketing_content, config):
     """Función helper para generar HTML con estructura común."""
     html_completo = f"""<!DOCTYPE html>
@@ -305,6 +390,7 @@ def generar_html_con_estructura_base(titulo, subtitulo, info_cards, info, market
 
 # Mapeo de categorías a funciones de plantilla
 TEMPLATE_REGISTRY = {
+    'generador_cummins': generar_html_generador,
     'generador': generar_html_generador,
     'compresor': generar_html_compresor,
     'hidrolavadora': generar_html_hidrolavadora,
@@ -315,8 +401,13 @@ TEMPLATE_REGISTRY = {
     'cortadora_troncos': generar_html_default,
     'zanjadora': generar_html_default,
     'vibrador_concreto': generar_html_default,
-    'motor_estacionario': generar_html_default,
     'implemento_agricola': generar_html_default,
+    'motor_estacionario': generar_html_motor_estacionario,
+    'equipo_construccion': generar_html_equipo_construccion,
+    'generador_inverter': generar_html_generador_inverter,
+    'transferencia_automatica': generar_html_default,
+    'generador_gas_residencial': generar_html_generador,
+    'generador_gas_industrial': generar_html_generador,
     'otro': generar_html_default,
     'default': generar_html_default
 }
@@ -339,8 +430,8 @@ def generar_content_sections_inline(info, marketing_content):
             icono_svg = ICONOS_SVG.get(punto.get('icono', 'check'), ICONOS_SVG['check'])
             items_html += f'''
                 <li style="padding: 8px 0; display: flex; align-items: start; gap: 10px;">
-                    <div style="min-width: 20px; margin-top: 3px;">{icono_svg.replace('width="28"', 'width="20"').replace('height="28"', 'height="20"')}</div>
-                    <span>{eliminar_tildes_y_especiales(punto.get('texto', ''))}</span>
+                    <div style="min-width: 20px; margin-top: 3px;">{icono_svg.replace('width="28"', 'width="20"').replace('height="28"', 'height="20"')}
+                    <span>{punto.get('texto', '')}</span>
                 </li>'''
         
         html += f'''
@@ -374,10 +465,10 @@ def generar_content_sections_inline(info, marketing_content):
         html += f'''
         <div class="content-section" style="margin: 30px; padding: 30px; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border-left: 4px solid #FFC107;">
             <h3 style="color: #D32F2F; font-size: 24px; margin: 0 0 15px 0; font-weight: 700;">
-                {eliminar_tildes_y_especiales(section.get('titulo', 'CARACTERISTICAS')).upper()}
+                {section.get('titulo', 'CARACTERISTICAS').upper()}
             </h3>
             <div style="font-size: 16px; line-height: 1.8; color: #555;">
-                {eliminar_tildes_y_especiales(section.get('parrafo', ''))}
+                {section.get('parrafo', '')}
             </div>
         </div>'''
 
@@ -401,7 +492,7 @@ def generar_content_sections_inline(info, marketing_content):
             apps_html += f'''
                 <li style="padding: 8px 0; display: flex; align-items: start; gap: 10px;">
                     <div style="min-width: 20px; margin-top: 3px;">{icono_svg}</div>
-                    <span>{eliminar_tildes_y_especiales(app.get('texto', ''))}</span>
+                    <span>{app.get('texto', '')}</span>
                 </li>'''
         
         html += f'''

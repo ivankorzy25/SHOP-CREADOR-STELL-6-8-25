@@ -152,6 +152,15 @@ class AIHandler:
                     info['consumo'] = consumo.replace('Lts/h', 'L/h').replace('litros/hora', 'L/h')
             
             categoria = info.get('categoria_producto', 'default')
+
+            # Detección manual de tipos de producto para anular la IA si es necesario
+            nombre_lower = info.get('nombre', '').lower()
+            modelo_lower = info.get('modelo', '').lower()
+
+            # Detectar generadores Cummins específicamente
+            if 'cummins' in nombre_lower or 'yns' in modelo_lower or 'cs' in modelo_lower:
+                categoria = 'generador_cummins'
+            
             print(f"✅ Categoría de producto identificada: {categoria}")
 
             # 3. Usar IA para generar contenido de marketing

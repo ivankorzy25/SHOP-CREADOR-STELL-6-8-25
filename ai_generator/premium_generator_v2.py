@@ -24,97 +24,6 @@ except Exception:
     pass
 
 # ============================================================================
-# FUNCIONES DE LIMPIEZA DE TEXTO
-# ============================================================================
-def eliminar_tildes_y_especiales(texto):
-    """Elimina tildes y caracteres especiales del texto."""
-    if not texto:
-        return texto
-    
-    # Convertir a string si no lo es
-    texto = str(texto)
-    
-    # Normalizar y remover tildes
-    texto_sin_tildes = ''.join(
-        c for c in unicodedata.normalize('NFD', texto)
-        if unicodedata.category(c) != 'Mn'
-    )
-    
-    # Reemplazar caracteres especiales comunes
-    reemplazos = {
-        'ñ': 'n',
-        'Ñ': 'N',
-        '°': ' grados',
-        '€': 'EUR',
-        '£': 'GBP',
-        '¥': 'JPY',
-        '¢': 'centavos',
-        '©': '(c)',
-        '®': '(r)',
-        '™': '(tm)',
-        '¿': '',
-        '¡': '',
-        '«': '"',
-        '»': '"',
-        '—': '-',
-        '–': '-',
-        ''': "'",
-        ''': "'",
-        '"': '"',
-        '"': '"',
-        '…': '...',
-        '•': '',
-        '·': '',
-        '§': 'seccion',
-        '¶': 'parrafo',
-        '✓': '',
-        '✔': '',
-        '✗': '',
-        '✘': '',
-        '★': '',
-        '☆': '',
-        '♦': '',
-        '♥': '',
-        '♠': '',
-        '♣': '',
-        '►': '',
-        '◄': '',
-        '▲': '',
-        '▼': '',
-        '→': '',
-        '←': '',
-        '↑': '',
-        '↓': '',
-        '↔': '',
-        '⇒': '',
-        '⇐': '',
-        '⇑': '',
-        '⇓': '',
-        '⇔': '',
-        '✅': '',
-        '❌': '',
-        '⚠️': '',
-        '⚡': '',
-        '🔧': '',
-        '📍': '',
-        '🏢': '',
-        '💡': '',
-        '🔨': '',
-        '🌟': ''
-    }
-    
-    for char_especial, reemplazo in reemplazos.items():
-        texto_sin_tildes = texto_sin_tildes.replace(char_especial, reemplazo)
-    
-    # Remover cualquier otro carácter no ASCII que quede
-    texto_limpio = ''.join(char if ord(char) < 128 else ' ' for char in texto_sin_tildes)
-    
-    # Limpiar espacios múltiples
-    texto_limpio = ' '.join(texto_limpio.split())
-    
-    return texto_limpio
-
-# ============================================================================
 # ICONOS SVG COMPLETOS (SET ORIGINAL + NUEVOS ICONOS PARA LISTAS)
 # ============================================================================
 ICONOS_SVG = {
@@ -226,7 +135,7 @@ def extraer_contenido_pdf(pdf_url, print_callback=print):
         response.raise_for_status()
         pdf_bytes = response.content
         
-        pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
+        pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")  # type: ignore
         texto_completo = ""
         tablas_markdown = []
         texto_ocr = ""
@@ -396,15 +305,15 @@ def generar_titulo_producto(info, caracteristicas):
                 titulo = nombre_producto
 
     # Asegurarse de que el título nunca sea None antes de llamar a upper()
-    titulo_limpio = eliminar_tildes_y_especiales(titulo or '')
+    titulo_limpio = (titulo or '')
     return titulo_limpio.upper()
 
 def generar_subtitulo_producto(info, caracteristicas):
     """Genera el subtítulo del producto."""
     subtitulo_ia = info.get('marketing_content', {}).get('subtitulo_p', '')
     if subtitulo_ia:
-        return eliminar_tildes_y_especiales(subtitulo_ia)
-    return "Solucion energetica de ultima generacion para su proyecto"
+        return subtitulo_ia
+    return "Solución energética de última generación para su proyecto"
 
 def generar_hero_section_inline(titulo, subtitulo):
     """Genera el header hero con estilos inline."""
@@ -432,7 +341,7 @@ def generar_info_cards_inline(info, caracteristicas):
     if potencia_valor and potencia_unidad:
         potencia_str = f"{potencia_valor} {potencia_unidad.upper()}"
     elif info.get('potencia_kva'): # Fallback para el formato antiguo
-        potencia_str = f"{info.get('potencia_kva')} KVA"
+        potencia_str = f"{info.get('potencia_kva')}"
     else:
         potencia_str = "N/D"
 
@@ -443,8 +352,9 @@ def generar_info_cards_inline(info, caracteristicas):
 
     potencia_kw = str(info.get('potencia_kw', '') or '').strip()
     motor = str(info.get('motor') or info.get('modelo_motor', '') or '').strip()
-    consumo = str(info.get('consumo') or info.get('consumo_combustible_75', '') or '').strip()
-    
+    consumo_valor = info.get('consumo_75_carga_valor', info.get('consumo_max_carga_valor', 'N/D'))
+    consumo_str = f"{consumo_valor} L/h" if consumo_valor != 'N/D' else 'N/D'
+
     return f'''
         <!-- ESPECIFICACIONES PRINCIPALES -->
         <div style="padding: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
@@ -456,7 +366,7 @@ def generar_info_cards_inline(info, caracteristicas):
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="#ff6600"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
                     </div>
                     <div>
-                        <p style="margin: 0; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Potencia Maxima</p>
+                        <p style="margin: 0; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Potencia Máxima</p>
                         <p style="margin: 5px 0 0 0; font-size: 24px; font-weight: 700; color: #ff6600;">
                             {potencia_str}
                         </p>
@@ -491,7 +401,7 @@ def generar_info_cards_inline(info, caracteristicas):
                         <p style="margin: 5px 0 0 0; font-size: 18px; font-weight: 600; color: #333; text-transform: capitalize;">
                             {tipo_combustible.upper()}
                         </p>
-                        {f'<p style="margin: 0; font-size: 14px; color: #999;">Consumo: {consumo}</p>' if consumo else ''}
+                        {f'<p style="margin: 0; font-size: 14px; color: #999;">Consumo: {consumo_str}</p>' if consumo_str != "N/D" else ''}
                     </div>
                 </div>
             </div>
@@ -516,7 +426,8 @@ def generar_specs_table_inline(info):
         'caudal_lts_min': ('Caudal', ICONOS_SVG.get('consumo')),
         'dimensiones_mm': ('Dimensiones (LxAxH)', ICONOS_SVG.get('dimensiones')),
         'peso_kg': ('Peso', ICONOS_SVG.get('peso')),
-        'capacidad_tanque_litros': ('Cap. Tanque', ICONOS_SVG.get('consumo'))
+        'capacidad_tanque_litros': ('Cap. Tanque', ICONOS_SVG.get('consumo')),
+        'autonomia_potencia_nominal_valor': ('Autonomía', ICONOS_SVG.get('autonomia_L'))
     }
 
     rows_html = ""
@@ -525,7 +436,16 @@ def generar_specs_table_inline(info):
     # Lista de claves a excluir de la tabla de especificaciones
     exclude_keys = [
         'nombre', 'marca', 'familia', 'pdf_url', 'marketing_content', 
-        'categoria_producto', 'caracteristicas_especiales'
+        'categoria_producto', 'caracteristicas_especiales',
+        'potencia_standby_valor', 'potencia_standby_unidad',
+        'potencia_prime_valor', 'potencia_prime_unidad',
+        'voltaje_unidad', 'frecuencia_hz', 'frecuencia_hz_unidad',
+        'consumo_75_carga_valor', 'consumo_75_carga_unidad',
+        'consumo_max_carga_valor', 'consumo_max_carga_unidad',
+        'capacidad_tanque_combustible_l', 'capacidad_tanque_combustible_unidad',
+        'autonomia_potencia_nominal_unidad',
+        'autonomia_pot_nominal_valor', 'autonomia_pot_nominal_unidad',
+        'peso_unidad', 'tipo_arranque'
     ]
 
     # Iterar sobre los datos del producto y construir la tabla dinámicamente
@@ -538,10 +458,11 @@ def generar_specs_table_inline(info):
         label, icon = spec_map.get(key, (key.replace('_', ' ').capitalize(), ICONOS_SVG.get('specs')))
         
         bg_color = '#f8f9fa' if row_count % 2 == 0 else 'white'
+        icon_html = icon.replace('fill="#D32F2F"', 'fill="#ff6600"') if icon else ''
         rows_html += f'''
                 <tr class="spec-row" style="background: {bg_color}; border-bottom: 1px solid #eee;">
                     <td style="padding: 15px 20px; display: flex; align-items: center; gap: 10px;">
-                        <div style="width: 20px; height: 20px; opacity: 0.6;">{icon.replace('fill="#D32F2F"', 'fill="#ff6600"')}</div>
+                        <div style="width: 20px; height: 20px; opacity: 0.6;">{icon_html}</div>
                         <span style="color: #666; font-weight: 500;">{label}</span>
                     </td>
                     <td style="padding: 15px 20px; font-weight: 600; color: #333;">{value}</td>
@@ -600,7 +521,7 @@ def generar_content_sections_inline(info, marketing_content):
             items_html += f'''
                 <li style="padding: 8px 0; display: flex; align-items: start; gap: 10px;">
                     <div style="min-width: 20px; margin-top: 3px;">{icono_svg.replace('width="28"', 'width="20"').replace('height="28"', 'height="20"')}</div>
-                    <span>{eliminar_tildes_y_especiales(punto.get('texto', ''))}</span>
+                    <span>{punto.get('texto', '')}</span>
                 </li>'''
         
         html += f'''
@@ -627,17 +548,17 @@ def generar_content_sections_inline(info, marketing_content):
     if not secciones_descripcion:
         secciones_descripcion.append({
             'titulo': 'POTENCIA Y RENDIMIENTO SUPERIOR',
-            'parrafo': f"Este equipo con {info.get('potencia_kva', 'alta')} KVA de potencia maxima esta disenado para brindar energia confiable y constante."
+            'parrafo': f"Este equipo con {info.get('potencia_kva', 'alta')} KVA de potencia máxima está diseñado para brindar energía confiable y constante."
         })
 
     for section in secciones_descripcion:
         html += f'''
         <div class="content-section" style="margin: 30px; padding: 30px; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border-left: 4px solid #FFC107;">
             <h3 style="color: #D32F2F; font-size: 24px; margin: 0 0 15px 0; font-weight: 700;">
-                {eliminar_tildes_y_especiales(section.get('titulo', 'CARACTERISTICAS')).upper()}
+                {section.get('titulo', 'CARACTERÍSTICAS').upper()}
             </h3>
             <div style="font-size: 16px; line-height: 1.8; color: #555;">
-                {eliminar_tildes_y_especiales(section.get('parrafo', ''))}
+                {section.get('parrafo', '')}
             </div>
         </div>'''
 
@@ -661,7 +582,7 @@ def generar_content_sections_inline(info, marketing_content):
             apps_html += f'''
                 <li style="padding: 8px 0; display: flex; align-items: start; gap: 10px;">
                     <div style="min-width: 20px; margin-top: 3px;">{icono_svg}</div>
-                    <span>{eliminar_tildes_y_especiales(app.get('texto', ''))}</span>
+                    <span>{app.get('texto', '')}</span>
                 </li>'''
         
         html += f'''
@@ -722,10 +643,10 @@ def generar_benefits_section_inline():
 def generar_cta_section_inline(info, config):
     """Genera la sección CTA con estilos inline."""
     # Construir descripción detallada del producto
-    marca = eliminar_tildes_y_especiales(info.get('marca', ''))
-    modelo = eliminar_tildes_y_especiales(info.get('modelo', ''))
+    marca = info.get('marca', '')
+    modelo = info.get('modelo', '')
     potencia_kva = info.get('potencia_kva', '')
-    nombre_producto = eliminar_tildes_y_especiales(info.get('nombre', 'este producto'))
+    nombre_producto = info.get('nombre', 'este producto')
     
     # Crear una descripción más específica del producto
     descripcion_producto = ""
@@ -734,7 +655,7 @@ def generar_cta_section_inline(info, config):
         if modelo and modelo not in ['N/D', 'n/d', 'N/A', 'n/a', 'None', 'null', '']:
             descripcion_producto += f" {modelo}"
         if potencia_kva and str(potencia_kva) not in ['N/D', 'n/d', 'N/A', 'n/a', 'None', 'null', '']:
-            descripcion_producto += f" de {potencia_kva} KVA"
+            descripcion_producto += f" de {potencia_kva}"
     else:
         descripcion_producto = nombre_producto
     
@@ -749,7 +670,7 @@ def generar_cta_section_inline(info, config):
     whatsapp_msg = f"Hola,%20estoy%20interesado%20en%20el%20{descripcion_producto.replace(' ', '%20')}.%20Vi%20este%20producto%20en%20su%20tienda%20online%20y%20me%20gustaria%20recibir%20mas%20informacion%20sobre%20precio,%20disponibilidad%20y%20condiciones%20de%20entrega.%20Muchas%20gracias."
     
     # Cuerpo del email más detallado
-    email_body = f"""Hola,%0A%0AEstoy%20interesado%20en%20el%20{descripcion_producto.replace(' ', '%20')}%20que%20vi%20en%20su%20tienda%20online.%0A%0ACaracteristicas%20del%20producto%20consultado:%0A-%20Marca:%20{marca.replace(' ', '%20')}%0A-%20Modelo:%20{modelo.replace(' ', '%20')}%0A-%20Potencia:%20{str(potencia_kva).replace(' ', '%20')}%20KVA%0A%0AMe%20gustaria%20recibir%20informacion%20sobre:%0A-%20Precio%20y%20disponibilidad%0A-%20Condiciones%20de%20pago%20y%20financiacion%0A-%20Plazo%20de%20entrega%0A-%20Garantia%20y%20servicio%20tecnico%0A%0AMis%20datos%20de%20contacto%20son:%0ANombre:%20%0ATelefono:%20%0AEmpresa:%20%0ALocalidad:%20%0A%0AQuedo%20a%20la%20espera%20de%20su%20respuesta.%0A%0ASaludos%20cordiales"""
+    email_body = f"""Hola,%0A%0AEstoy%20interesado%20en%20el%20{descripcion_producto.replace(' ', '%20')}%20que%20vi%20en%20su%20tienda%20online.%0A%0ACaracteristicas%20del%20producto%20consultado:%0A-%20Marca:%20{marca.replace(' ', '%20')}%0A-%20Modelo:%20{modelo.replace(' ', '%20')}%0A-%20Potencia:%20{str(potencia_kva).replace(' ', '%20')}%0A%0AMe%20gustaria%20recibir%20informacion%20sobre:%0A-%20Precio%20y%20disponibilidad%0A-%20Condiciones%20de%20pago%20y%20financiacion%0A-%20Plazo%20de%20entrega%0A-%20Garantia%20y%20servicio%20tecnico%0A%0AMis%20datos%20de%20contacto%20son:%0ANombre:%20%0ATelefono:%20%0AEmpresa:%20%0ALocalidad:%20%0A%0AQuedo%20a%20la%20espera%20de%20su%20respuesta.%0A%0ASaludos%20cordiales"""
     
     return f'''
         <!-- CALL TO ACTION -->

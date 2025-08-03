@@ -546,9 +546,22 @@ def generar_content_sections_inline(info, marketing_content):
         })
 
     if not secciones_descripcion:
+        # Lógica de fallback mejorada para ser más genérica
+        potencia_str = ""
+        if info.get('potencia_kva'):
+            potencia_str = f"{info.get('potencia_kva')} KVA"
+        elif info.get('potencia_hp'):
+            potencia_str = f"{info.get('potencia_hp')} HP"
+        elif info.get('potencia_max_w'):
+            potencia_str = f"{info.get('potencia_max_w')} W"
+        elif info.get('potencia'):
+             potencia_str = f"{info.get('potencia')}"
+        else:
+            potencia_str = "alta potencia"
+
         secciones_descripcion.append({
             'titulo': 'POTENCIA Y RENDIMIENTO SUPERIOR',
-            'parrafo': f"Este equipo con {info.get('potencia_kva', 'alta')} KVA de potencia máxima está diseñado para brindar energía confiable y constante."
+            'parrafo': f"Este equipo con {potencia_str} está diseñado para brindar un rendimiento confiable y constante."
         })
 
     for section in secciones_descripcion:

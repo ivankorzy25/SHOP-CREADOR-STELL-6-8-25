@@ -240,31 +240,241 @@ def generar_badges_caracteristicas(info, caracteristicas):
     
     return badges_html
 
-def generar_grafico_consumo(consumo_str):
-    """Genera un pequeño gráfico SVG de consumo."""
+def calcular_eficiencia_universal(info):
+    """
+    Calcula eficiencia para CUALQUIER tipo de generador o equipo con motor
+    """
+    # Extraer valores necesarios
+    tipo_combustible = info.get('combustible', '').lower()
+    consumo_str = info.get('consumo_75_carga_valor') or info.get('consumo_max_carga_valor') or info.get('consumo', '')
+    
     # Extraer valor numérico del consumo
     try:
-        consumo_valor = float(re.findall(r'[\d.]+', consumo_str)[0])
-        # Normalizar para gráfico (asumiendo max 50 L/h)
-        porcentaje = min(100, (consumo_valor / 50) * 100)
+        import re
+        match = re.search(r'([\d.]+)', str(consumo_str))
+        if match:
+            consumo_valor = float(match.group(1))
+        else:
+            return {
+                'porcentaje': 50,
+                'texto': 'Información no disponible',
+                'color': '#9E9E9E',
+                'nota': ''
+            }
     except:
-        porcentaje = 50  # Default si no se puede parsear
+        return {
+            'porcentaje': 50,
+            'texto': 'Información no disponible',
+            'color': '#9E9E9E',
+            'nota': ''
+        }
+    
+    # Obtener potencia en KW
+    potencia_kw = obtener_potencia_kw(info)
+    
+    if potencia_kw == 0:
+        return {
+            'porcentaje': 50,
+            'texto': 'Información no disponible',
+            'color': '#9E9E9E',
+            'nota': ''
+        }
+    
+    # Cálculos específicos por tipo de combustible
+    eficiencia_data = {}
+    
+    if tipo_combustible in ['nafta', 'gasolina', 'gasoline', 'bencina']:
+        # Generadores nafteros: ~0.4-0.5 L/h por KW es normal
+        consumo_esperado = potencia_kw * 0.45
+        ratio = consumo_valor / consumo_esperado if consumo_esperado > 0 else 1
+        
+        if ratio < 0.8:  # Consume menos del 80% esperado
+            eficiencia_data = {
+                'porcentaje': 90,
+                'texto': 'Excelente Eficiencia',
+                'color': '#4CAF50',
+                'nota': 'Consumo optimizado para nafta'
+            }
+        elif ratio < 1.2:  # Entre 80% y 120% esperado
+            eficiencia_data = {
+                'porcentaje': 60,
+                'texto': 'Eficiencia Normal',
+                'color': '#FFC107',
+                'nota': 'Consumo típico para generadores nafteros'
+            }
+        else:  # Más del 120% esperado
+            eficiencia_data = {
+                'porcentaje': 30,
+                'texto': 'Consumo Elevado',
+                'color': '#FF5722',
+                'nota': 'Considerar mantenimiento del motor'
+            }
+    
+    elif tipo_combustible in ['diesel', 'gasoil', 'diésel']:
+        # Generadores diesel: ~0.2-0.3 L/h por KW es normal
+        consumo_esperado = potencia_kw * 0.25
+        ratio = consumo_valor / consumo_esperado if consumo_esperado > 0 else 1
+        
+        if ratio < 0.9:
+            eficiencia_data = {
+                'porcentaje': 95,
+                'texto': 'Eficiencia Superior',
+                'color': '#1B5E20',
+                'nota': 'Motor diesel de alta eficiencia'
+            }
+        elif ratio < 1.1:
+            eficiencia_data = {
+                'porcentaje': 75,
+                'texto': 'Buena Eficiencia',
+                'color': '#4CAF50',
+                'nota': 'Consumo óptimo para diesel'
+            }
+        elif ratio < 1.3:
+            eficiencia_data = {
+                'porcentaje': 55,
+                'texto': 'Eficiencia Estándar',
+                'color': '#FFC107',
+                'nota': 'Consumo dentro del rango esperado'
+            }
+        else:
+            eficiencia_data = {
+                'porcentaje': 30,
+                'texto': 'Consumo Alto',
+                'color': '#FF5722',
+                'nota': 'Revisar inyectores y filtros'
+            }
+    
+    elif tipo_combustible in ['gas', 'gnc', 'glp', 'gas natural', 'propano']:
+        # Generadores a gas: ~0.3-0.4 m³/h por KW
+        consumo_esperado = potencia_kw * 0.35
+        ratio = consumo_valor / consumo_esperado if consumo_esperado > 0 else 1
+        
+        if ratio < 0.85:
+            eficiencia_data = {
+                'porcentaje': 85,
+                'texto': 'Alta Eficiencia',
+                'color': '#4CAF50',
+                'nota': 'Excelente aprovechamiento del gas'
+            }
+        elif ratio < 1.15:
+            eficiencia_data = {
+                'porcentaje': 65,
+                'texto': 'Eficiencia Normal',
+                'color': '#03A9F4',
+                'nota': 'Consumo típico para gas'
+            }
+        else:
+            eficiencia_data = {
+                'porcentaje': 35,
+                'texto': 'Consumo Elevado',
+                'color': '#FF5722',
+                'nota': 'Verificar presión de gas'
+            }
+    
+    else:
+        # Default para otros tipos o combustibles no especificados
+        # Usar lógica genérica basada en potencia
+        litros_por_hora_por_kw = consumo_valor / potencia_kw
+        
+        if litros_por_hora_por_kw < 0.3:
+            eficiencia_data = {
+                'porcentaje': 80,
+                'texto': 'Buena Eficiencia',
+                'color': '#4CAF50',
+                'nota': 'Consumo eficiente'
+            }
+        elif litros_por_hora_por_kw < 0.5:
+            eficiencia_data = {
+                'porcentaje': 60,
+                'texto': 'Eficiencia Estándar',
+                'color': '#FFC107',
+                'nota': 'Consumo moderado'
+            }
+        else:
+            eficiencia_data = {
+                'porcentaje': 40,
+                'texto': 'Consumo Alto',
+                'color': '#FF5722',
+                'nota': 'Consumo elevado para la potencia'
+            }
+    
+    return eficiencia_data
+
+def obtener_potencia_kw(info):
+    """
+    Obtiene la potencia en KW desde diferentes campos posibles
+    """
+    # Primero buscar KW directamente
+    if info.get('potencia_kw'):
+        try:
+            return float(str(info['potencia_kw']).replace('KW', '').replace(',', '.').strip())
+        except:
+            pass
+    
+    # Si no, convertir desde KVA (factor 0.8)
+    if info.get('potencia_kva'):
+        try:
+            kva = float(str(info['potencia_kva']).replace('KVA', '').replace(',', '.').strip())
+            return kva * 0.8
+        except:
+            pass
+    
+    # Si hay potencia en HP, convertir (1 HP = 0.746 KW)
+    if info.get('potencia_hp'):
+        try:
+            hp = float(str(info['potencia_hp']).replace('HP', '').replace(',', '.').strip())
+            return hp * 0.746
+        except:
+            pass
+    
+    # Si hay potencia en Watts
+    if info.get('potencia_w') or info.get('potencia_max_w'):
+        try:
+            watts = float(str(info.get('potencia_w', info.get('potencia_max_w', '0'))).replace('W', '').replace(',', '.').strip())
+            return watts / 1000
+        except:
+            pass
+    
+    return 0
+
+def generar_grafico_consumo_universal(info):
+    """
+    Genera un gráfico visual de consumo universal para cualquier producto
+    """
+    # Obtener datos de eficiencia calculados
+    eficiencia_data = info.get('eficiencia_data', calcular_eficiencia_universal(info))
+    
+    # Extraer valores
+    porcentaje = eficiencia_data.get('porcentaje', 50)
+    texto_eficiencia = eficiencia_data.get('texto', 'Eficiencia Media')
+    color_principal = eficiencia_data.get('color', '#FFC107')
+    nota = eficiencia_data.get('nota', '')
+    
+    # Obtener consumo para mostrar
+    consumo_str = info.get('consumo') or info.get('consumo_75_carga_valor') or 'N/D'
     
     return f'''
     <div style="margin-top: 10px; background: #f5f5f5; border-radius: 8px; padding: 10px;">
         <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-            <span style="font-size: 11px; color: #666;">Eficiencia de Consumo</span>
-            <span style="font-size: 11px; color: #666;">{consumo_str}</span>
+            <span style="font-size: 11px; color: #666; font-weight: 600;">EFICIENCIA DE CONSUMO</span>
+            <span style="font-size: 11px; color: {color_principal}; font-weight: 600;">{texto_eficiencia}</span>
         </div>
-        <div style="background: #e0e0e0; height: 8px; border-radius: 4px; overflow: hidden;">
-            <div style="background: linear-gradient(to right, #4CAF50, #FFC107, #F44336); width: {porcentaje}%; height: 100%; transition: width 1s ease;"></div>
+        <div style="background: #e0e0e0; height: 8px; border-radius: 4px; overflow: hidden; position: relative;">
+            <div style="background: linear-gradient(to right, #4CAF50 0%, #8BC34A 25%, #FFC107 50%, #FF9800 75%, #F44336 100%); height: 100%; width: 100%; opacity: 0.3;"></div>
+            <div style="position: absolute; top: 0; left: 0; background: {color_principal}; width: {porcentaje}%; height: 100%; transition: width 1s ease; box-shadow: 0 0 4px rgba(0,0,0,0.2);"></div>
         </div>
         <div style="display: flex; justify-content: space-between; margin-top: 5px;">
             <span style="font-size: 10px; color: #4CAF50;">Eficiente</span>
+            <span style="font-size: 10px; color: #666;">{consumo_str}</span>
             <span style="font-size: 10px; color: #F44336;">Alto consumo</span>
         </div>
+        {f'<div style="text-align: center; margin-top: 5px;"><span style="font-size: 9px; color: #999;">{nota}</span></div>' if nota else ''}
     </div>
     '''
+
+def generar_grafico_consumo(consumo_str):
+    """Genera un pequeño gráfico SVG de consumo - DEPRECADO, usar generar_grafico_consumo_universal"""
+    return generar_grafico_consumo_universal({'consumo': consumo_str})
 
 def extraer_info_tecnica(row):
     """Extrae y normaliza la información técnica de una fila de datos de la BD."""
@@ -385,51 +595,219 @@ def extraer_datos_tecnicos_del_pdf(texto_pdf, info_actual, print_callback=print)
         'tanque': r'(?:Capacidad del tanque|Tanque de combustible)\s*\(?L\)?\s*[:\s]*(\d+)',
         'peso': r'Peso\s*\(?kg\)?\s*[:\s]*(\d+)',
         'ruido': r'Nivel de ruido\s*\(?dBA?@\d+m\)?\s*[:\s]*(\d+)',
-        'motor': r'Motor\s*[:\s]*([A-Za-z0-9\.\-\s]+)',
+        'motor': [
+            r'Motor[:\s]+([A-Za-z0-9\s\-\.]+?)(?:\n|$)',
+            r'Marca del motor[:\s]+([A-Za-z0-9\s\-\.]+?)(?:\n|$)',
+            r'Motor marca[:\s]+([A-Za-z0-9\s\-\.]+?)(?:\n|$)',
+            r'ENGINE[:\s]+([A-Za-z0-9\s\-\.]+?)(?:\n|$)',
+            r'Motor\s*:\s*([A-Za-z0-9\s\-\.]+?)(?:\n|$)',
+            r'Tipo de motor[:\s]+([A-Za-z0-9\s\-\.]+?)(?:\n|$)'
+        ],
         'alternador': r'Alternador\s*[:\s]*([A-Za-z0-9\.\-\s]+)',
         'cilindrada': r'Cilindrada\s*\(cc\)\s*[:\s]*(\d+)'
     }
     
     for campo, patron in patrones.items():
-        match = re.search(patron, texto_pdf, re.IGNORECASE | re.DOTALL)
-        if match:
-            valor_extraido = match.group(1).strip()
-            # Siempre se da prioridad al dato del PDF
-            info_actualizada[campo] = valor_extraido
-            print_callback(f"  -> Dato extraído de PDF: {campo} = {valor_extraido}")
+        # Si es una lista de patrones, probar cada uno
+        if isinstance(patron, list):
+            for p in patron:
+                match = re.search(p, texto_pdf, re.IGNORECASE | re.MULTILINE)
+                if match:
+                    valor_extraido = match.group(1).strip()
+                    # Siempre se da prioridad al dato del PDF
+                    info_actualizada[campo] = valor_extraido
+                    print_callback(f"  -> Dato extraído de PDF: {campo} = {valor_extraido}")
+                    break  # Salir al encontrar el primer match
+        else:
+            match = re.search(patron, texto_pdf, re.IGNORECASE | re.DOTALL)
+            if match:
+                valor_extraido = match.group(1).strip()
+                # Siempre se da prioridad al dato del PDF
+                info_actualizada[campo] = valor_extraido
+                print_callback(f"  -> Dato extraído de PDF: {campo} = {valor_extraido}")
             
     return info_actualizada
 
-def validar_caracteristicas_producto(info, texto_pdf):
-    """Detecta características especiales del producto."""
+def detectar_caracteristicas_universal(info, texto_pdf=''):
+    """
+    Detecta características especiales para CUALQUIER producto universalmente
+    """
     caracteristicas = {
         'tiene_tta': False,
         'tiene_cabina': False,
         'es_inverter': False,
-        'tipo_combustible': 'diesel' # Por defecto
+        'es_portatil': False,
+        'arranque_automatico': False,
+        'es_trifasico': False,
+        'es_monofasico': False,
+        'tiene_control_remoto': False,
+        'es_industrial': False,
+        'tipo_combustible': '',
+        'badges_especiales': [],
+        'caracteristicas_adicionales': []
     }
     
-    # Combinar toda la información de texto disponible
-    texto_busqueda = f"{info.get('nombre', '')} {info.get('familia', '')}".lower()
+    # Combinar TODA la información disponible para búsqueda
+    texto_busqueda = ' '.join(str(v) for v in info.values() if v).lower()
     if texto_pdf:
-        texto_busqueda += " " + texto_pdf.lower()
-
-    # Check from 'caracteristicas_especiales' if available from AI extraction
-    special_features = info.get('caracteristicas_especiales', [])
-    if any('tta' in feature.lower() for feature in special_features):
+        texto_busqueda += ' ' + texto_pdf.lower()
+    
+    # Detectar tipo de combustible universalmente
+    if any(fuel in texto_busqueda for fuel in ['nafta', 'gasolina', 'gasoline', 'bencina']):
+        caracteristicas['tipo_combustible'] = 'nafta'
+    elif any(fuel in texto_busqueda for fuel in ['diesel', 'gasoil', 'diésel']):
+        caracteristicas['tipo_combustible'] = 'diesel'
+    elif any(fuel in texto_busqueda for fuel in ['gas natural', 'gnc', 'glp', 'propano']):
+        caracteristicas['tipo_combustible'] = 'gas'
+    else:
+        # Intentar obtener del campo directo
+        caracteristicas['tipo_combustible'] = info.get('combustible', 'diesel').lower()
+    
+    # Detección de características técnicas principales
+    if any(keyword in texto_busqueda for keyword in ['tta', 'transferencia automática', 'transferencia automatica', 'ats', 'automatic transfer']):
         caracteristicas['tiene_tta'] = True
-    if any('cabinado' in feature.lower() or 'insonorizado' in feature.lower() for feature in special_features):
+        caracteristicas['badges_especiales'].append({
+            'texto': 'TRANSFERENCIA AUTOMÁTICA',
+            'color': '#9C27B0',
+            'icono': 'tta'
+        })
+    
+    if any(keyword in texto_busqueda for keyword in ['cabinado', 'insonorizado', 'soundproof', 'silent', 'cabina acustica', 'cabina acústica']):
         caracteristicas['tiene_cabina'] = True
-    if any('inverter' in feature.lower() for feature in special_features):
+        caracteristicas['badges_especiales'].append({
+            'texto': 'INSONORIZADO',
+            'color': '#2196F3',
+            'icono': 'insonorizado'
+        })
+    
+    if 'inverter' in texto_busqueda:
         caracteristicas['es_inverter'] = True
+        caracteristicas['badges_especiales'].append({
+            'texto': 'TECNOLOGÍA INVERTER',
+            'color': '#00BCD4',
+            'icono': 'inverter'
+        })
+    
+    # Detección de portabilidad basada en múltiples factores
+    peso_str = str(info.get('peso_kg', '999')).replace('kg', '').strip()
+    try:
+        peso = float(peso_str)
+        if peso < 100 or any(word in texto_busqueda for word in ['portátil', 'portatil', 'portable', 'movil', 'móvil']):
+            caracteristicas['es_portatil'] = True
+            caracteristicas['badges_especiales'].append({
+                'texto': 'PORTÁTIL',
+                'color': '#FF9800',
+                'icono': 'portable'
+            })
+    except:
+        # Si no hay peso, buscar por palabras clave
+        if any(word in texto_busqueda for word in ['portátil', 'portatil', 'portable']):
+            caracteristicas['es_portatil'] = True
+            caracteristicas['badges_especiales'].append({
+                'texto': 'PORTÁTIL',
+                'color': '#FF9800',
+                'icono': 'portable'
+            })
+    
+    # Detección de arranque
+    if any(keyword in texto_busqueda for keyword in ['arranque automático', 'arranque automatico', 'autostart', 'automatic start', 'arranque eléctrico']):
+        caracteristicas['arranque_automatico'] = True
+        caracteristicas['badges_especiales'].append({
+            'texto': 'ARRANQUE AUTOMÁTICO',
+            'color': '#FF5722',
+            'icono': 'automatico'
+        })
+    elif any(keyword in texto_busqueda for keyword in ['arranque remoto', 'control remoto', 'remote control', 'remote start']):
+        caracteristicas['tiene_control_remoto'] = True
+        caracteristicas['badges_especiales'].append({
+            'texto': 'CONTROL REMOTO',
+            'color': '#3F51B5',
+            'icono': 'remoto'
+        })
+    
+    # Detección de sistema eléctrico
+    if any(keyword in texto_busqueda for keyword in ['trifásico', 'trifasico', '3 fases', 'three phase', '380v', '400v']):
+        caracteristicas['es_trifasico'] = True
+        caracteristicas['badges_especiales'].append({
+            'texto': 'TRIFÁSICO',
+            'color': '#673AB7',
+            'icono': 'trifasico'
+        })
+    elif any(keyword in texto_busqueda for keyword in ['monofásico', 'monofasico', '1 fase', 'single phase', '220v', '230v']):
+        caracteristicas['es_monofasico'] = True
+    
+    # Detección de uso industrial
+    if any(keyword in texto_busqueda for keyword in ['industrial', 'heavy duty', 'trabajo pesado', 'uso intensivo', 'continuo']):
+        caracteristicas['es_industrial'] = True
+        caracteristicas['badges_especiales'].append({
+            'texto': 'USO INDUSTRIAL',
+            'color': '#795548',
+            'icono': 'industria'
+        })
+    
+    # Características adicionales por categoría de producto
+    categoria = info.get('familia', '').lower()
+    
+    # Para compresores
+    if 'compresor' in categoria:
+        if any(word in texto_busqueda for word in ['libre de aceite', 'oil free', 'sin aceite']):
+            caracteristicas['badges_especiales'].append({
+                'texto': 'LIBRE DE ACEITE',
+                'color': '#4CAF50',
+                'icono': 'eco'
+            })
+    
+    # Para hidrolavadoras
+    if 'hidrolavadora' in categoria:
+        if any(word in texto_busqueda for word in ['agua caliente', 'hot water', 'termica']):
+            caracteristicas['badges_especiales'].append({
+                'texto': 'AGUA CALIENTE',
+                'color': '#F44336',
+                'icono': 'temperatura'
+            })
+    
+    # Para motobombas
+    if 'motobomba' in categoria or 'bomba' in categoria:
+        if any(word in texto_busqueda for word in ['autocebante', 'self priming']):
+            caracteristicas['badges_especiales'].append({
+                'texto': 'AUTOCEBANTE',
+                'color': '#03A9F4',
+                'icono': 'water'
+            })
+    
+    # Certificaciones y normativas
+    if any(cert in texto_busqueda for cert in ['ce', 'iso', 'certificado', 'homologado', 'norma']):
+        caracteristicas['caracteristicas_adicionales'].append('Certificaciones de calidad')
+    
+    # Garantías especiales
+    if any(word in texto_busqueda for word in ['garantía extendida', 'garantia extendida', '2 años', '3 años', '5 años']):
+        caracteristicas['caracteristicas_adicionales'].append('Garantía extendida')
+    
+    # Limitar badges a los 4 más importantes
+    if len(caracteristicas['badges_especiales']) > 4:
+        caracteristicas['badges_especiales'] = caracteristicas['badges_especiales'][:4]
+    
+    return caracteristicas
 
-    # Fallback to text search if not in special features
-    if not caracteristicas['tiene_tta'] and any(keyword in texto_busqueda for keyword in ['tta', 'transferencia automatica', 'ats']):
-        caracteristicas['tiene_tta'] = True
-    if not caracteristicas['tiene_cabina'] and any(keyword in texto_busqueda for keyword in ['cabinado', 'insonorizado', 'soundproof', 'silent']):
-        caracteristicas['tiene_cabina'] = True
-    if not caracteristicas['es_inverter'] and 'inverter' in texto_busqueda:
-        caracteristicas['es_inverter'] = True
+# Mantener compatibilidad con función anterior
+def validar_caracteristicas_producto(info, texto_pdf):
+    """Compatibilidad con código existente"""
+    return detectar_caracteristicas_universal(info, texto_pdf)
+    
+    # Detectar arranque automático
+    if any(keyword in texto_busqueda for keyword in ['automático', 'automatic', 'auto start', 'arranque automatico']):
+        caracteristicas['arranque_automatico'] = True
+        caracteristicas['badges_especiales'].append({
+            'texto': 'ARRANQUE AUTOMÁTICO',
+            'color': '#FF5722',
+            'icono': 'automatico'
+        })
+    
+    # Detectar portabilidad
+    if any(keyword in texto_busqueda for keyword in ['portátil', 'portable', 'portatil']) or (
+        info.get('peso_kg') and float(str(info.get('peso_kg', '100')).replace('kg', '').strip()) < 50
+    ):
+        caracteristicas['es_portatil'] = True
 
     # Determine fuel type
     if info.get('combustible'):
@@ -440,8 +818,16 @@ def validar_caracteristicas_producto(info, texto_pdf):
             caracteristicas['tipo_combustible'] = 'nafta'
     elif any(keyword in texto_busqueda for keyword in ['gas', 'glp', 'gnc']):
         caracteristicas['tipo_combustible'] = 'gas'
-    elif 'nafta' in texto_busqueda:
+    elif 'nafta' in texto_busqueda or 'gasolina' in texto_busqueda:
         caracteristicas['tipo_combustible'] = 'nafta'
+    
+    # Badge especial para generadores nafteros
+    if caracteristicas['tipo_combustible'] == 'nafta' and caracteristicas['es_portatil']:
+        caracteristicas['badges_especiales'].append({
+            'texto': 'PORTÁTIL',
+            'color': '#FF9800',
+            'icono': 'portable'
+        })
         
     return caracteristicas
 
@@ -456,17 +842,165 @@ def procesar_campo_con_unidad(info, campo_base):
         return f"{valor} {unidad}" if unidad else str(valor)
     return None
 
+def validar_y_limpiar_datos_universal(info):
+    """
+    Valida y limpia los datos para TODOS los productos universalmente
+    """
+    datos_limpios = info.copy()
+    
+    # Lista ampliada de campos que pueden tener unidades duplicadas
+    campos_con_unidad = [
+        'capacidad_tanque_combustible_l', 
+        'consumo_75_carga_valor',
+        'consumo_max_carga_valor',
+        'consumo',
+        'capacidad_aceite_l',
+        'autonomia_horas',
+        'peso_kg',
+        'capacidad_tanque_litros',
+        'presion_bar',
+        'caudal_lts_min',
+        'caudal_lph',
+        'ancho_labranza_cm',
+        'capacidad_tanque_l',
+        'cilindrada_cc',
+        'diametro_max_rama_cm',
+        'potencia_hp',
+        'frecuencia_hz',
+        'fuerza_impacto_kg',
+        'profundidad_corte_mm',
+        'potencia_max_w'
+    ]
+    
+    # Patrón regex para detectar duplicación de unidades
+    import re
+    for campo in campos_con_unidad:
+        if campo in datos_limpios and isinstance(datos_limpios[campo], str):
+            valor = str(datos_limpios[campo])
+            # Remover duplicaciones como "15 L L" → "15 L"
+            # Patrón: número + unidad + misma unidad
+            valor = re.sub(r'(\d+\.?\d*)\s*([A-Za-z/]+)\s*\2+', r'\1 \2', valor)
+            # Limpiar espacios múltiples
+            valor = re.sub(r'\s+', ' ', valor)
+            datos_limpios[campo] = valor.strip()
+    
+    # Normalizar y extraer información del motor si está como N/D
+    if datos_limpios.get('motor') in ['N/D', 'n/d', None, '']:
+        # Intentar extraer de otros campos
+        motor_alt = extraer_info_motor_alternativa(datos_limpios)
+        if motor_alt and motor_alt != 'N/D':
+            datos_limpios['motor'] = motor_alt
+    
+    # Validar y calcular consumo específico para TODOS los tipos de combustible
+    combustible = datos_limpios.get('combustible', '').lower()
+    consumo_campo = datos_limpios.get('consumo_75_carga_valor') or datos_limpios.get('consumo')
+    
+    if consumo_campo and combustible:
+        try:
+            consumo_num = float(str(consumo_campo).replace('L/h', '').replace('m³/h', '').replace(',', '.').strip())
+            potencia_num = float(str(datos_limpios.get('potencia_kva', '1')).replace('KVA', '').strip())
+            
+            # Calcular consumo específico según tipo de combustible
+            consumo_por_kw = consumo_num / (potencia_num * 0.8)  # Convertir a KW
+            
+            # Agregar notas según eficiencia detectada
+            if combustible in ['nafta', 'gasolina', 'gasoline']:
+                if consumo_por_kw > 0.6:
+                    datos_limpios['nota_consumo'] = "Consumo en condiciones de carga máxima"
+                elif consumo_por_kw < 0.3:
+                    datos_limpios['nota_consumo'] = "Excelente eficiencia de combustible"
+            elif combustible in ['diesel', 'gasoil']:
+                if consumo_por_kw > 0.35:
+                    datos_limpios['nota_consumo'] = "Consumo en condiciones exigentes"
+                elif consumo_por_kw < 0.2:
+                    datos_limpios['nota_consumo'] = "Alta eficiencia para diesel"
+            elif combustible in ['gas', 'gnc', 'glp']:
+                if consumo_por_kw > 0.45:
+                    datos_limpios['nota_consumo'] = "Consumo elevado de gas"
+                elif consumo_por_kw < 0.25:
+                    datos_limpios['nota_consumo'] = "Óptimo consumo de gas"
+        except:
+            pass
+    
+    # Limpiar valores "N/D" o vacíos en TODOS los campos
+    for key, value in list(datos_limpios.items()):
+        if isinstance(value, str):
+            value_lower = value.lower().strip()
+            if value_lower in ['n/d', 'n/a', 'none', 'null', 'undefined', '']:
+                datos_limpios[key] = None
+    
+    # Normalizar campos booleanos
+    for campo_bool in ['tiene_tta', 'tiene_cabina', 'es_inverter', 'es_trifasico']:
+        if campo_bool in datos_limpios:
+            datos_limpios[campo_bool] = bool(datos_limpios[campo_bool])
+    
+    return datos_limpios
+
+def extraer_info_motor_alternativa(info):
+    """
+    Intenta extraer información del motor de campos alternativos
+    """
+    # Buscar en descripción o nombre
+    nombre = str(info.get('nombre', '')).upper()
+    
+    # Patrones comunes de motores
+    patrones_motor = [
+        r'MOTOR\s+([A-Z]+\s*\d+HP)',
+        r'([A-Z]+\s+\d+HP)',
+        r'MOTOR\s+([A-Z]+)',
+        r'(\d+HP)',
+        r'(\d+\s*CC)'
+    ]
+    
+    for patron in patrones_motor:
+        match = re.search(patron, nombre)
+        if match:
+            return match.group(1)
+    
+    # Si hay cilindrada, usar eso
+    if info.get('cilindrada'):
+        return f"Motor {info['cilindrada']}"
+    
+    # Si hay potencia HP
+    if info.get('potencia_hp'):
+        return f"Motor {info['potencia_hp']} HP"
+    
+    return 'N/D'
+
+# Mantener compatibilidad con función anterior
+def validar_y_limpiar_datos(info):
+    """Compatibilidad con código existente"""
+    return validar_y_limpiar_datos_universal(info)
+
 def procesar_datos_para_tabla(info):
     """
     Procesa y combina campos antes de generar la tabla
     """
-    # Crear copia para no modificar el original
-    datos_procesados = info.copy()
+    # Primero validar y limpiar
+    datos_procesados = validar_y_limpiar_datos(info)
     
     # Combinar campos de potencia motor
     if 'potencia_motor_valor' in info and 'potencia_motor_unidad' in info:
         datos_procesados['motor'] = f"{info.get('potencia_motor_valor', '')} {info.get('potencia_motor_unidad', '')}"
+    
+    # PROCESAR CONSUMO - COMBINAR VALOR Y UNIDAD
+    consumo_valor = datos_procesados.get('consumo_75_carga_valor', 
+                                         datos_procesados.get('consumo_max_carga_valor', 
+                                         datos_procesados.get('consumo', '')))
+    
+    if consumo_valor and str(consumo_valor) not in ['N/D', '', 'None']:
+        consumo_str = str(consumo_valor).strip()
         
+        # Si ya tiene "L/h", no agregarlo de nuevo
+        if 'L/h' in consumo_str or 'l/h' in consumo_str.lower():
+            datos_procesados['consumo'] = consumo_str
+        # Si es solo un número (puede tener punto decimal)
+        elif consumo_str.replace('.','').replace(',','').isdigit():
+            datos_procesados['consumo'] = f"{consumo_str} L/h"
+        else:
+            # Si tiene otro formato, dejarlo como está
+            datos_procesados['consumo'] = consumo_str
+            
     # Normalizar campos específicos
     campos_a_normalizar = {
         'cilindrada_cc': ('cilindrada', 'cc'),
@@ -592,66 +1126,28 @@ def generar_info_cards_inline_mejorado(info, caracteristicas):
     if motor and info.get('potencia_motor_unidad'):
         motor += f" {info['potencia_motor_unidad']}"
     
-    # Obtener consumo correctamente
-    consumo_valor = info.get('consumo_valor') or info.get('consumo_75_carga_valor') or info.get('consumo_max_carga_valor') or info.get('consumo')
-    consumo_unidad = info.get('consumo_unidad', 'L/h')
+    # Obtener consumo correctamente - usar el campo ya procesado
+    consumo_str = info.get('consumo', 'N/D')
     
-    if consumo_valor and str(consumo_valor) != 'N/D':
-        consumo_str = f"{consumo_valor} {consumo_unidad}"
-    else:
-        consumo_str = "N/D"
+    # Si por alguna razón todavía no está procesado, intentar procesarlo aquí
+    if consumo_str == 'N/D' or not consumo_str:
+        consumo_valor = info.get('consumo_valor') or info.get('consumo_75_carga_valor') or info.get('consumo_max_carga_valor')
+        if consumo_valor and str(consumo_valor) != 'N/D':
+            consumo_str_temp = str(consumo_valor).strip()
+            # Verificar si ya tiene unidad
+            if 'L/h' not in consumo_str_temp and 'l/h' not in consumo_str_temp.lower():
+                consumo_str = f"{consumo_str_temp} L/h"
+            else:
+                consumo_str = consumo_str_temp
+        else:
+            consumo_str = "N/D"
 
     # Generar badges de características
     badges_html = generar_badges_caracteristicas(info, caracteristicas)
 
     # Función para generar el gráfico de consumo
-    def generar_grafico_consumo_mejorado(consumo_str):
-        """Genera un gráfico visual de consumo mejorado."""
-        try:
-            # Extraer valor numérico
-            import re
-            match = re.search(r'([\d.]+)', str(consumo_str))
-            if match:
-                consumo_valor = float(match.group(1))
-                # Normalizar para gráfico (asumiendo diferentes rangos según el tipo de equipo)
-                if info.get('potencia_kva'):
-                    potencia_num = float(str(info.get('potencia_kva', '100')).replace('KVA', '').strip())
-                    eficiencia = min(100, max(0, 100 - (consumo_valor / potencia_num * 50)))
-                else:
-                    eficiencia = min(100, max(0, 100 - (consumo_valor * 2)))
-            else:
-                eficiencia = 50
-        except:
-            eficiencia = 50
-
-        # Determinar color según eficiencia
-        if eficiencia >= 70:
-            color_principal = '#4CAF50'
-            texto_eficiencia = 'Alta Eficiencia'
-        elif eficiencia >= 40:
-            color_principal = '#FFC107'
-            texto_eficiencia = 'Eficiencia Media'
-        else:
-            color_principal = '#F44336'
-            texto_eficiencia = 'Consumo Elevado'
-
-        return f'''
-        <div style="margin-top: 10px; background: #f5f5f5; border-radius: 8px; padding: 10px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                <span style="font-size: 11px; color: #666; font-weight: 600;">EFICIENCIA DE CONSUMO</span>
-                <span style="font-size: 11px; color: {color_principal}; font-weight: 600;">{texto_eficiencia}</span>
-            </div>
-            <div style="background: #e0e0e0; height: 8px; border-radius: 4px; overflow: hidden; position: relative;">
-                <div style="background: linear-gradient(to right, #4CAF50 0%, #8BC34A 25%, #FFC107 50%, #FF9800 75%, #F44336 100%); height: 100%; width: 100%; opacity: 0.3;"></div>
-                <div style="position: absolute; top: 0; left: 0; background: {color_principal}; width: {eficiencia}%; height: 100%; transition: width 1s ease; box-shadow: 0 0 4px rgba(0,0,0,0.2);"></div>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-top: 5px;">
-                <span style="font-size: 10px; color: #4CAF50;">Eficiente</span>
-                <span style="font-size: 10px; color: #666;">{consumo_str}</span>
-                <span style="font-size: 10px; color: #F44336;">Alto consumo</span>
-            </div>
-        </div>
-        '''
+    # Usar función universal para gráfico de consumo
+    grafico_consumo = generar_grafico_consumo_universal(info)
 
     return f'''
         <!-- BADGES DE CARACTERÍSTICAS ESPECIALES -->
@@ -707,7 +1203,7 @@ def generar_info_cards_inline_mejorado(info, caracteristicas):
                             {tipo_combustible.upper()}
                         </p>
                         {f'<p style="margin: 5px 0 0 0; font-size: 14px; color: #666;">Consumo: <strong>{consumo_str}</strong></p>' if consumo_str != "N/D" else ''}
-                        {generar_grafico_consumo_mejorado(consumo_str) if consumo_str != "N/D" else ''}
+                        {grafico_consumo if consumo_str != "N/D" else ''}
                     </div>
                 </div>
             </div>
@@ -740,7 +1236,7 @@ def generar_mini_cards_adicionales(info):
         <div style="background: #e3f2fd; border-radius: 8px; padding: 15px; text-align: center; border: 1px solid #90caf9;">
             <div style="width: 32px; height: 32px; margin: 0 auto 8px;">{ICONOS_SVG['tanque']}</div>
             <p style="margin: 0; font-size: 12px; color: #666;">Tanque</p>
-            <p style="margin: 5px 0 0 0; font-size: 16px; font-weight: 600; color: #2196F3;">{info['capacidad_tanque_combustible_l']} L</p>
+            <p style="margin: 5px 0 0 0; font-size: 16px; font-weight: 600; color: #2196F3;">{info['capacidad_tanque_combustible_l']}</p>
         </div>
         ''')
     
@@ -766,6 +1262,131 @@ def generar_mini_cards_adicionales(info):
         ''')
     
     return ''.join(mini_cards)
+
+def obtener_icono_para_campo_universal(nombre_campo, valor_campo=''):
+    """
+    Retorna el icono apropiado para CUALQUIER campo de forma universal
+    """
+    # Normalizar nombre del campo
+    campo_norm = nombre_campo.lower().replace('_', ' ')
+    
+    # Para combustible, elegir icono según el valor
+    if 'combustible' in campo_norm or 'fuel' in campo_norm:
+        valor_norm = str(valor_campo).lower()
+        if any(fuel in valor_norm for fuel in ['nafta', 'gasolina', 'gasoline']):
+            return ICONOS_SVG.get('nafta', ICONOS_SVG['gas'])
+        elif any(fuel in valor_norm for fuel in ['diesel', 'gasoil']):
+            return ICONOS_SVG.get('diesel', ICONOS_SVG['gas'])
+        elif any(fuel in valor_norm for fuel in ['gas', 'gnc', 'glp']):
+            return ICONOS_SVG.get('gas', ICONOS_SVG['gas'])
+        else:
+            return ICONOS_SVG['gas']
+    
+    # Diccionario completo de mapeo de iconos
+    iconos_campos = {
+        # Potencia y energía
+        'potencia': ICONOS_SVG['potencia'],
+        'power': ICONOS_SVG['potencia'],
+        'kva': ICONOS_SVG['potencia'],
+        'kw': ICONOS_SVG['potencia'],
+        'watts': ICONOS_SVG['potencia'],
+        'hp': ICONOS_SVG['motor'],
+        
+        # Motor y mecánica
+        'motor': ICONOS_SVG['motor'],
+        'engine': ICONOS_SVG['motor'],
+        'cilindrada': ICONOS_SVG.get('cilindros', ICONOS_SVG['motor']),
+        'cilindros': ICONOS_SVG.get('cilindros', ICONOS_SVG['motor']),
+        'rpm': ICONOS_SVG.get('rpm', ICONOS_SVG['gear']),
+        'revoluciones': ICONOS_SVG.get('rpm', ICONOS_SVG['gear']),
+        
+        # Combustible y consumo
+        'consumo': ICONOS_SVG['consumo'],
+        'consumption': ICONOS_SVG['consumo'],
+        'tanque': ICONOS_SVG.get('tanque', ICONOS_SVG['gas']),
+        'tank': ICONOS_SVG.get('tanque', ICONOS_SVG['gas']),
+        'capacidad tanque': ICONOS_SVG.get('tanque', ICONOS_SVG['gas']),
+        'autonomia': ICONOS_SVG['clock'],
+        'autonomía': ICONOS_SVG['clock'],
+        
+        # Control y arranque
+        'arranque': ICONOS_SVG.get('arranque', ICONOS_SVG['gear']),
+        'starting': ICONOS_SVG.get('arranque', ICONOS_SVG['gear']),
+        'controlador': ICONOS_SVG['gear'],
+        'controller': ICONOS_SVG['gear'],
+        'panel': ICONOS_SVG['gear'],
+        'bateria': ICONOS_SVG.get('battery', ICONOS_SVG['potencia']),
+        'battery': ICONOS_SVG.get('battery', ICONOS_SVG['potencia']),
+        
+        # Sistema eléctrico
+        'voltaje': ICONOS_SVG['voltaje'],
+        'voltage': ICONOS_SVG['voltaje'],
+        'tension': ICONOS_SVG['voltaje'],
+        'frecuencia': ICONOS_SVG['frecuencia'],
+        'frequency': ICONOS_SVG['frecuencia'],
+        'fases': ICONOS_SVG.get('fases', ICONOS_SVG['voltaje']),
+        'phases': ICONOS_SVG.get('fases', ICONOS_SVG['voltaje']),
+        'alternador': ICONOS_SVG['potencia'],
+        
+        # Dimensiones y peso
+        'dimensiones': ICONOS_SVG['dimensiones'],
+        'dimensions': ICONOS_SVG['dimensiones'],
+        'tamaño': ICONOS_SVG['dimensiones'],
+        'peso': ICONOS_SVG['peso'],
+        'weight': ICONOS_SVG['peso'],
+        'largo': ICONOS_SVG['dimensiones'],
+        'ancho': ICONOS_SVG['dimensiones'],
+        'alto': ICONOS_SVG['dimensiones'],
+        
+        # Ambiente y condiciones
+        'temperatura': ICONOS_SVG['temperatura'],
+        'temperature': ICONOS_SVG['temperatura'],
+        'ruido': ICONOS_SVG['ruido'],
+        'noise': ICONOS_SVG['ruido'],
+        'sonoro': ICONOS_SVG['ruido'],
+        'nivel sonoro': ICONOS_SVG['ruido'],
+        'dba': ICONOS_SVG['ruido'],
+        
+        # Presión y flujo
+        'presion': ICONOS_SVG.get('presion', ICONOS_SVG['gauge']),
+        'presión': ICONOS_SVG.get('presion', ICONOS_SVG['gauge']),
+        'pressure': ICONOS_SVG.get('gauge', ICONOS_SVG['gauge']),
+        'caudal': ICONOS_SVG.get('water', ICONOS_SVG['gauge']),
+        'flujo': ICONOS_SVG.get('water', ICONOS_SVG['gauge']),
+        'bar': ICONOS_SVG.get('gauge', ICONOS_SVG['gauge']),
+        
+        # Otros
+        'aceite': ICONOS_SVG.get('aceite', ICONOS_SVG['tanque']),
+        'oil': ICONOS_SVG.get('aceite', ICONOS_SVG['tanque']),
+        'certificacion': ICONOS_SVG.get('award', ICONOS_SVG['shield']),
+        'certificaciones': ICONOS_SVG.get('award', ICONOS_SVG['shield']),
+        'garantia': ICONOS_SVG['shield'],
+        'garantía': ICONOS_SVG['shield'],
+        'warranty': ICONOS_SVG['shield'],
+        'modelo': ICONOS_SVG.get('info', ICONOS_SVG['gear']),
+        'model': ICONOS_SVG.get('info', ICONOS_SVG['gear']),
+        'serie': ICONOS_SVG.get('info', ICONOS_SVG['gear']),
+        'factor potencia': ICONOS_SVG.get('chart', ICONOS_SVG['potencia']),
+        'marca': ICONOS_SVG.get('award', ICONOS_SVG['info']),
+        
+        # Campos específicos por producto
+        'labranza': ICONOS_SVG.get('campo', ICONOS_SVG['tools']),
+        'profundidad': ICONOS_SVG['dimensiones'],
+        'diametro': ICONOS_SVG['dimensiones'],
+        'diámetro': ICONOS_SVG['dimensiones'],
+        'marchas': ICONOS_SVG['gear'],
+        'eje': ICONOS_SVG['gear'],
+        'corte': ICONOS_SVG['tools'],
+        'alcance': ICONOS_SVG.get('location', ICONOS_SVG['arrow_right'])
+    }
+    
+    # Buscar coincidencia más específica primero
+    for key, icon in iconos_campos.items():
+        if key in campo_norm:
+            return icon
+    
+    # Si no hay coincidencia, usar icono por defecto
+    return ICONOS_SVG.get('dot', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#666"><circle cx="12" cy="12" r="3"/></svg>')
 
 def generar_specs_table_inline(info):
     """Genera la tabla de especificaciones con iconos específicos mejorados."""
@@ -823,8 +1444,15 @@ def generar_specs_table_inline(info):
         'certificaciones': ('Certificaciones', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#ffc107"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>'),
         'garantia': ('Garantía', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#4caf50"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>'),
         
-        # Otros
-        'capacidad_aceite': ('Capacidad de Aceite', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#ffeb3b"><path d="M10 2v6h4V2h-4zm0 8v12h4V10h-4z"/></svg>')
+        # Otros campos específicos
+        'capacidad_aceite': ('Capacidad de Aceite', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#ffeb3b"><path d="M10 2v6h4V2h-4zm0 8v12h4V10h-4z"/></svg>'),
+        'cilindrada': ('Cilindrada', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#666"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/><circle cx="12" cy="12" r="3"/></svg>'),
+        'autonomia': ('Autonomía', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#666"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z"/></svg>'),
+        'capacidad_tanque': ('Capacidad Tanque', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#666"><path d="M19 9v6c0 1.1-.9 2-2 2H7c-1.1 0-2-.9-2-2V9c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2zM7 11h10M12 7v4"/></svg>'),
+        'tipo_arranque': ('Tipo de Arranque', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#666"><path d="M12 2v10l4-4-4-4zm0 20V12l-4 4 4 4z"/></svg>'),
+        'cilindros': ('Cilindros', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#666"><path d="M7 4h10v16H7V4zm2 2v12h6V6H9z"/></svg>'),
+        'factor_potencia': ('Factor de Potencia', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#666"><path d="M11 2v9.4l-3.5-3.5-1.4 1.4 5.9 5.9 5.9-5.9-1.4-1.4L13 11.4V2h-2z"/></svg>'),
+        'potencia_motor_hp': ('Potencia Motor', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#666"><path d="M12 16c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4zm0-6c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2z"/></svg>')
     }
 
     rows_html = ""
@@ -900,22 +1528,39 @@ def generar_specs_table_inline(info):
                         is_in_category = True
 
                 if is_in_category:
-                    label, icon = spec_map.get(key, (key.replace('_', ' ').capitalize(), '<svg width="20" height="20" viewBox="0 0 24 24" fill="#666"><circle cx="12" cy="12" r="2"/></svg>'))
+                    # Usar función universal para obtener iconos
+                    icon = obtener_icono_para_campo_universal(key, value)
                     
-                    # Mapeo de nombres específicos
-                    nombre_mapping = {
-                        'cilindrada_cc': 'Cilindrada',
-                        'capacidad_aceite_l': 'Capacidad de Aceite',
-                        'autonomia_horas': 'Autonomía',
-                        'capacidad_tanque_combustible_l': 'Capacidad del Tanque',
-                        'dimensiones_mm': 'Dimensiones',
-                        'peso_kg': 'Peso',
-                        'potencia_kva': 'Potencia',
-                        'frecuencia_hz': 'Frecuencia',
-                        'tipo_arranque': 'Tipo de Arranque'
-                    }
+                    # Intentar obtener label del spec_map primero
+                    if key in spec_map:
+                        label = spec_map[key][0]
+                    else:
+                        # Mapeo de nombres específicos mejorado
+                        nombre_mapping = {
+                            'cilindrada_cc': 'Cilindrada',
+                            'capacidad_aceite_l': 'Capacidad de Aceite',
+                            'autonomia_horas': 'Autonomía',
+                            'capacidad_tanque_combustible_l': 'Capacidad del Tanque',
+                            'dimensiones_mm': 'Dimensiones',
+                            'peso_kg': 'Peso',
+                            'potencia_kva': 'Potencia',
+                            'frecuencia_hz': 'Frecuencia',
+                            'tipo_arranque': 'Tipo de Arranque',
+                            'nivel_ruido_dba': 'Nivel de Ruido',
+                            'presion_bar': 'Presión',
+                            'caudal_lts_min': 'Caudal',
+                            'ancho_labranza_cm': 'Ancho de Labranza',
+                            'diametro_max_rama_cm': 'Diámetro Máximo',
+                            'potencia_motor_hp': 'Potencia Motor',
+                            'potencia_hp': 'Potencia',
+                            'potencia_max_w': 'Potencia Máxima',
+                            'frecuencia_hz': 'Frecuencia',
+                            'fuerza_impacto_kg': 'Fuerza de Impacto',
+                            'profundidad_corte_mm': 'Profundidad de Corte'
+                        }
+                        label = nombre_mapping.get(key, key.replace('_', ' ').title())
                     
-                    display_name = nombre_mapping.get(key, key.replace('_', ' ').title())
+                    display_name = label
                     
                     value_display = str(value)
 
@@ -931,19 +1576,7 @@ def generar_specs_table_inline(info):
                         </tr>'''
                     row_count += 1
     
-    # Verificar si hay datos de consumo para agregarlo a la tabla
-    consumo_valor = info.get('consumo_75_carga_valor', info.get('consumo_max_carga_valor'))
-    if consumo_valor and consumo_valor != 'N/D':
-        # Agregar fila de consumo en la sección correspondiente
-        rows_html += f'''
-        <tr class="spec-row" style="background: white; border-bottom: 1px solid #eee;">
-            <td style="padding: 15px 20px; display: flex; align-items: center; gap: 10px;">
-                <div style="width: 20px; height: 20px; opacity: 0.7;"><svg width="20" height="20" viewBox="0 0 24 24" fill="#4caf50"><path d="M19.77 7.23l.01-.01-3.72-3.72L15 4.56l2.11 2.11c-.94.36-1.61 1.26-1.61 2.33..."/></svg></div>
-                <span style="color: #666; font-weight: 500;">Consumo</span>
-            </td>
-            <td style="padding: 15px 20px; font-weight: 600; color: #333;">{consumo_valor} L/h</td>
-        </tr>
-        '''
+    # El consumo ya se procesa en procesar_datos_para_tabla y se incluye en la tabla principal
     
     return f'''
         <!-- TABLA DE ESPECIFICACIONES TÉCNICAS MEJORADA -->
@@ -1138,7 +1771,15 @@ def generar_cta_section_inline(info, config):
     modelo = info.get('modelo', '')
     potencia = info.get('potencia_kva', '')
     
-    mensaje_whatsapp = f"Hola, estoy interesado en el {marca} {modelo} de {potencia}. Vi este producto en su tienda online y me gustaría recibir más información sobre precio, disponibilidad y condiciones de entrega. Muchas gracias."
+    # Construir referencia del producto correctamente
+    producto_ref = modelo if modelo else nombre_producto
+    if marca and marca not in ['N/D', 'None', '']:
+        producto_ref = f"{marca} {producto_ref}"
+    
+    # Agregar potencia si existe
+    potencia_text = f" de {potencia}" if potencia and potencia not in ['N/D', 'None', ''] else ""
+    
+    mensaje_whatsapp = f"Hola, estoy interesado en el {producto_ref}{potencia_text}. Vi este producto en su tienda online y me gustaría recibir más información sobre precio, disponibilidad y condiciones de entrega. Muchas gracias."
     mensaje_whatsapp_encoded = mensaje_whatsapp.replace(' ', '%20')
     
     pdf_button_html = ''

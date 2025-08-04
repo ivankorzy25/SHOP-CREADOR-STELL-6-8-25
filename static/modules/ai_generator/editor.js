@@ -571,24 +571,27 @@ function testWithProduct(save = false) {
     refreshPreview(save);
 }
 
-async function selectSaveFolder() {
-    showLoading();
-    try {
-        const response = await fetch('/api/save/select-folder');
-        const data = await response.json();
-        if (data.success) {
-            editorState.localSavePath = data.path;
-            document.getElementById('save-path-display').textContent = data.path;
-            showNotification('Carpeta de guardado seleccionada', 'success');
-        } else {
-            showNotification(data.error || 'No se seleccionó carpeta', 'warning');
-        }
-    } catch (error) {
-        console.error('Error seleccionando carpeta:', error);
-        showNotification('Error al abrir el selector de carpetas', 'error');
-    } finally {
-        hideLoading();
+function savePreviewAs() {
+    const htmlContent = document.getElementById('preview-container').innerHTML;
+    const product = editorState.currentProduct;
+
+    if (!htmlContent || htmlContent.includes('La vista previa aparecerá aquí')) {
+        showNotification('No hay previsualización para guardar.', 'warning');
+        return;
     }
+
+    const productName = product ? `${product.marca}_${product.modelo}` : 'preview';
+    const fileName = `${productName}.html`;
+
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    showNotification(`Archivo ${fileName} guardado.`, 'success');
 }
 
 function saveAsVersion() {

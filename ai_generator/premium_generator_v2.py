@@ -445,6 +445,50 @@ def validar_caracteristicas_producto(info, texto_pdf):
         
     return caracteristicas
 
+def procesar_campo_con_unidad(info, campo_base):
+    """
+    Combina campos separados de valor y unidad en un solo campo formateado
+    """
+    valor = info.get(f'{campo_base}_valor', '')
+    unidad = info.get(f'{campo_base}_unidad', '')
+    
+    if valor and valor != 'N/D':
+        return f"{valor} {unidad}" if unidad else str(valor)
+    return None
+
+def procesar_datos_para_tabla(info):
+    """
+    Procesa y combina campos antes de generar la tabla
+    """
+    # Crear copia para no modificar el original
+    datos_procesados = info.copy()
+    
+    # Combinar campos de potencia motor
+    if 'potencia_motor_valor' in info and 'potencia_motor_unidad' in info:
+        datos_procesados['motor'] = f"{info.get('potencia_motor_valor', '')} {info.get('potencia_motor_unidad', '')}"
+        
+    # Normalizar campos específicos
+    campos_a_normalizar = {
+        'cilindrada_cc': ('cilindrada', 'cc'),
+        'capacidad_aceite_l': ('capacidad_aceite', 'L'),
+        'autonomia_horas': ('autonomia', 'horas'),
+        'capacidad_tanque_combustible_l': ('capacidad_tanque', 'L'),
+        'dimensiones_mm': ('dimensiones', ''),
+        'peso_kg': ('peso', 'kg'),
+        'frecuencia': ('frecuencia', 'Hz'),
+        'voltaje': ('voltaje', 'V')
+    }
+    
+    for campo_original, (nombre_display, unidad_default) in campos_a_normalizar.items():
+        if campo_original in datos_procesados:
+            valor = datos_procesados[campo_original]
+            if valor and valor != 'N/D':
+                # Si es un número solo, agregar unidad
+                if str(valor).replace('.','').isdigit() and unidad_default:
+                    datos_procesados[campo_original] = f"{valor} {unidad_default}"
+    
+    return datos_procesados
+
 # ============================================================================
 # FUNCIONES DE GENERACIÓN DE HTML CON ESTILOS INLINE
 # ============================================================================
@@ -726,6 +770,9 @@ def generar_mini_cards_adicionales(info):
 def generar_specs_table_inline(info):
     """Genera la tabla de especificaciones con iconos específicos mejorados."""
     
+    # Procesar y combinar campos antes de generar la tabla
+    info = procesar_datos_para_tabla(info)
+
     # Mapeo extendido con iconos específicos para cada tipo de campo
     spec_map = {
         # Información básica
@@ -784,40 +831,35 @@ def generar_specs_table_inline(info):
     row_count = 0
     
     # Lista actualizada de claves a excluir
-    exclude_keys_complete = [
-        'nombre', 'marca', 'familia', 'pdf_url', 'marketing_content', 
+    exclude_keys = [
+        'nombre', 'marca', 'familia', 'pdf_url', 'marketing_content',
         'categoria_producto', 'caracteristicas_especiales',
-        # Todos los campos de valores y unidades separados
         'potencia_standby_valor', 'potencia_standby_unidad',
         'potencia_prime_valor', 'potencia_prime_unidad',
-        'potencia_max_valor', 'potencia_max_unidad',
-        'voltaje_unidad', 'frecuencia_hz', 'frecuencia_hz_unidad', 'frecuencia_unidad',
         'consumo_75_carga_valor', 'consumo_75_carga_unidad',
         'consumo_max_carga_valor', 'consumo_max_carga_unidad',
-        'consumo_valor', 'consumo_unidad',
-        'capacidad_tanque_combustible_l', 'capacidad_tanque_combustible_unidad',
-        'capacidad_tanque_valor', 'capacidad_tanque_unidad',
-        'autonomia_potencia_nominal_unidad', 'autonomia_unidad',
-        'autonomia_pot_nominal_valor', 'autonomia_pot_nominal_unidad',
-        'autonomia_valor',
-        'peso_unidad', 'tipo_arranque',
-        'potencia_motor_valor', 'potencia_motor_unidad',
-        'cilindrada_valor', 'cilindrada_unidad',
-        'capacidad_aceite_valor', 'capacidad_aceite_unidad',
-        'nivel_ruido_valor', 'nivel_ruido_unidad',
-        'factor_potencia',
-        'cilindros'
+        # AGREGAR ESTOS:
+        'potencia_motor_valor',
+        'potencia_motor_unidad',
+        'voltaje_unidad',
+        'frecuencia_hz',
+        'voltaje_valor',
+        'potencia_valor',
+        'potencia_unidad',
+        'nivel_ruido_dba',
+        'nivel_ruido_valor', 
+        'nivel_ruido_unidad',
     ]
 
     # Agrupar especificaciones por categoría para mejor organización
     categorias = {
         'Especificaciones Eléctricas': ['modelo', 'serie', 'potencia_kva', 'potencia_prime', 'potencia_kw', 'voltaje', 'frecuencia', 'fases'],
-        'Motor y Mecánica': ['motor', 'marca_motor', 'modelo_motor', 'rpm', 'cilindrada'],
-        'Combustible y Autonomía': ['combustible', 'consumo', 'capacidad_tanque_litros', 'autonomia'],
-        'Control y Operación': ['arranque', 'controlador', 'panel_control', 'alternador', 'bateria'],
-        'Características Físicas': ['dimensiones_mm', 'peso_kg', 'peso'],
+        'Motor y Mecánica': ['motor', 'marca_motor', 'modelo_motor', 'rpm', 'cilindrada', 'cilindrada_cc'],
+        'Combustible y Autonomía': ['combustible', 'consumo', 'capacidad_tanque_litros', 'autonomia', 'autonomia_horas', 'capacidad_tanque_combustible_l', 'capacidad_tanque'],
+        'Control y Operación': ['arranque', 'controlador', 'panel_control', 'alternador', 'bateria', 'tipo_arranque'],
+        'Características Físicas': ['dimensiones_mm', 'peso_kg', 'peso', 'dimensiones'],
         'Condiciones Ambientales': ['nivel_sonoro_dba_7m', 'nivel_ruido', 'temperatura_operacion'],
-        'Otros': []
+        'Otros': ['capacidad_aceite_l', 'capacidad_aceite']
     }
 
     # Procesar datos por categoría
@@ -825,42 +867,83 @@ def generar_specs_table_inline(info):
         categoria_tiene_datos = False
         
         # Verificar si hay datos en esta categoría
-        for key, value in info.items():
-            if key in exclude_keys_complete or not value or str(value).strip().lower() in ['n/d', 'nan', 'none', '']:
-                continue
-            
-            if key in campos or (categoria == 'Otros' and not any(key in c for c_list in categorias.values() for c in c_list)):
+        for key in campos:
+            if key in info and info[key] not in [None, '', 'N/D']:
                 categoria_tiene_datos = True
                 break
         
-        if categoria_tiene_datos and row_count > 0:
-            # Agregar separador de categoría
-            rows_html += f'''
-                <tr style="background: #f5f5f5; border-top: 2px solid #ddd;">
-                    <td colspan="2" style="padding: 10px 20px; font-weight: 600; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">
-                        {categoria}
-                    </td>
-                </tr>'''
-        
-        # Agregar filas de la categoría
-        for key, value in info.items():
-            if key in exclude_keys_complete or not value or str(value).strip().lower() in ['n/d', 'nan', 'none', '']:
-                continue
-            
-            if key in campos or (categoria == 'Otros' and not any(key in c for c_list in categorias.values() for c in c_list)):
-                label, icon = spec_map.get(key, (key.replace('_', ' ').capitalize(), '<svg width="20" height="20" viewBox="0 0 24 24" fill="#666"><circle cx="12" cy="12" r="2"/></svg>'))
-                
-                bg_color = '#f8f9fa' if row_count % 2 == 0 else 'white'
-                
+        if not categoria_tiene_datos and categoria == 'Otros':
+             for key, value in info.items():
+                if key not in exclude_keys and value not in [None, '', 'N/D']:
+                    if not any(key in cat_campos for cat_campos in categorias.values()):
+                        categoria_tiene_datos = True
+                        break
+
+        if categoria_tiene_datos:
+            if row_count > 0:
+                # Agregar separador de categoría
                 rows_html += f'''
-                    <tr class="spec-row" style="background: {bg_color}; border-bottom: 1px solid #eee; transition: all 0.2s ease;">
-                        <td style="padding: 15px 20px; display: flex; align-items: center; gap: 10px;">
-                            <div style="width: 20px; height: 20px; opacity: 0.7; transition: all 0.3s ease;">{icon}</div>
-                            <span style="color: #666; font-weight: 500;">{label}</span>
+                    <tr style="background: #f5f5f5; border-top: 2px solid #ddd;">
+                        <td colspan="2" style="padding: 10px 20px; font-weight: 600; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">
+                            {categoria}
                         </td>
-                        <td style="padding: 15px 20px; font-weight: 600; color: #333;">{value}</td>
                     </tr>'''
-                row_count += 1
+            
+            # Agregar filas de la categoría
+            for key, value in sorted(info.items()):
+                if key in exclude_keys or value in [None, '', 'N/D']:
+                    continue
+
+                is_in_category = key in campos
+                if not is_in_category and categoria == 'Otros':
+                    if not any(key in cat_campos for cat_campos in categorias.values()):
+                        is_in_category = True
+
+                if is_in_category:
+                    label, icon = spec_map.get(key, (key.replace('_', ' ').capitalize(), '<svg width="20" height="20" viewBox="0 0 24 24" fill="#666"><circle cx="12" cy="12" r="2"/></svg>'))
+                    
+                    # Mapeo de nombres específicos
+                    nombre_mapping = {
+                        'cilindrada_cc': 'Cilindrada',
+                        'capacidad_aceite_l': 'Capacidad de Aceite',
+                        'autonomia_horas': 'Autonomía',
+                        'capacidad_tanque_combustible_l': 'Capacidad del Tanque',
+                        'dimensiones_mm': 'Dimensiones',
+                        'peso_kg': 'Peso',
+                        'potencia_kva': 'Potencia',
+                        'frecuencia_hz': 'Frecuencia',
+                        'tipo_arranque': 'Tipo de Arranque'
+                    }
+                    
+                    display_name = nombre_mapping.get(key, key.replace('_', ' ').title())
+                    
+                    value_display = str(value)
+
+                    bg_color = '#f8f9fa' if row_count % 2 == 0 else 'white'
+                    
+                    rows_html += f'''
+                        <tr class="spec-row" style="background: {bg_color}; border-bottom: 1px solid #eee; transition: all 0.2s ease;">
+                            <td style="padding: 15px 20px; display: flex; align-items: center; gap: 10px;">
+                                <div style="width: 20px; height: 20px; opacity: 0.7; transition: all 0.3s ease;">{icon}</div>
+                                <span style="color: #666; font-weight: 500;">{display_name}</span>
+                            </td>
+                            <td style="padding: 15px 20px; font-weight: 600; color: #333;">{value_display}</td>
+                        </tr>'''
+                    row_count += 1
+    
+    # Verificar si hay datos de consumo para agregarlo a la tabla
+    consumo_valor = info.get('consumo_75_carga_valor', info.get('consumo_max_carga_valor'))
+    if consumo_valor and consumo_valor != 'N/D':
+        # Agregar fila de consumo en la sección correspondiente
+        rows_html += f'''
+        <tr class="spec-row" style="background: white; border-bottom: 1px solid #eee;">
+            <td style="padding: 15px 20px; display: flex; align-items: center; gap: 10px;">
+                <div style="width: 20px; height: 20px; opacity: 0.7;"><svg width="20" height="20" viewBox="0 0 24 24" fill="#4caf50"><path d="M19.77 7.23l.01-.01-3.72-3.72L15 4.56l2.11 2.11c-.94.36-1.61 1.26-1.61 2.33..."/></svg></div>
+                <span style="color: #666; font-weight: 500;">Consumo</span>
+            </td>
+            <td style="padding: 15px 20px; font-weight: 600; color: #333;">{consumo_valor} L/h</td>
+        </tr>
+        '''
     
     return f'''
         <!-- TABLA DE ESPECIFICACIONES TÉCNICAS MEJORADA -->
@@ -1172,6 +1255,24 @@ def generar_contact_footer_inline(config):
             </p>
         </div>
     '''
+
+def validar_y_limpiar_datos(info):
+    """Limpia y valida los datos antes de generar el HTML"""
+    
+    # Eliminar campos duplicados o internos
+    campos_a_eliminar = [
+        'potencia_valor', 'potencia_unidad',
+        'nivel_ruido_dba', 'nivel_ruido_valor', 'nivel_ruido_unidad'
+    ]
+    
+    for campo in campos_a_eliminar:
+        info.pop(campo, None)
+    
+    # Normalizar campos específicos
+    if 'nivel_sonoro' not in info and 'nivel_ruido_dba' in info:
+        info['nivel_sonoro'] = info.pop('nivel_ruido_dba')
+    
+    return info
 
 def generar_css_hover_effects():
     """Genera los estilos CSS mejorados con nuevas animaciones."""

@@ -9,7 +9,8 @@ from .premium_generator_v2 import (
     generar_benefits_section_inline,
     generar_cta_section_inline,
     generar_contact_footer_inline,
-    generar_css_hover_effects
+    generar_css_hover_effects,
+    procesar_datos_para_tabla
 )
 
 def generar_html_generador(info, marketing_content, caracteristicas, config):
@@ -17,6 +18,9 @@ def generar_html_generador(info, marketing_content, caracteristicas, config):
     Genera el HTML completo para la categoría 'generador'.
     Esta es la plantilla principal y más detallada.
     """
+    # Procesar los datos ANTES de pasarlos a las funciones de renderizado
+    info = procesar_datos_para_tabla(info)
+
     # Reutilizar la lógica de `generar_info_cards_inline_mejorado` de premium_generator_v2
     from .premium_generator_v2 import generar_info_cards_inline_mejorado
     
@@ -58,6 +62,7 @@ def generar_html_compresor(info, marketing_content, caracteristicas, config):
     Genera el HTML completo para la categoría 'compresor'.
     (Plantilla de ejemplo, se puede expandir)
     """
+    info = procesar_datos_para_tabla(info)
     titulo = marketing_content.get('titulo_h1', info.get('nombre', 'Compresor'))
     subtitulo = marketing_content.get('subtitulo_p', 'Potencia y eficiencia para tus herramientas')
 
@@ -99,6 +104,7 @@ def generar_html_default(info, marketing_content, caracteristicas, config):
     """
     Genera una plantilla HTML genérica para categorías no especificadas.
     """
+    info = procesar_datos_para_tabla(info)
     titulo = marketing_content.get('titulo_h1', info.get('nombre', 'Producto'))
     subtitulo = marketing_content.get('subtitulo_p', 'Descripción del producto')
     
@@ -125,6 +131,7 @@ def generar_html_hidrolavadora(info, marketing_content, caracteristicas, config)
     """
     Genera el HTML completo para la categoría 'hidrolavadora'.
     """
+    info = procesar_datos_para_tabla(info)
     titulo = marketing_content.get('titulo_h1', info.get('nombre', 'Hidrolavadora'))
     subtitulo = marketing_content.get('subtitulo_p', 'Limpieza a alta presión para resultados profesionales')
 
@@ -171,6 +178,7 @@ def generar_html_motobomba(info, marketing_content, caracteristicas, config):
     """
     Genera el HTML completo para la categoría 'motobomba'.
     """
+    info = procesar_datos_para_tabla(info)
     titulo = marketing_content.get('titulo_h1', info.get('nombre', 'Motobomba'))
     subtitulo = marketing_content.get('subtitulo_p', 'Soluciones de bombeo para cada necesidad')
 

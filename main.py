@@ -472,7 +472,7 @@ def update_base():
     """Actualizar el prompt base"""
     try:
         data = request.get_json() or {}
-        prompt_text = data.get('prompt')
+        prompt_text = data.get('prompt', '')
         description = data.get('description', 'Prompt base actualizado desde el editor')
         
         updated = prompt_manager.update_base_prompt(prompt_text, description)
@@ -712,23 +712,22 @@ def process_batch_locally():
         logger.error(f"Error en el endpoint de procesamiento por lotes: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/save/select-folder', methods=['GET'])
-def select_folder():
-    """Abre un diálogo para seleccionar una carpeta y devuelve la ruta."""
+@app.route('/api/save/preview', methods=['POST'])
+def save_preview():
+    """Guarda el HTML de previsualización en la carpeta de exportaciones."""
     try:
-        root = tk.Tk()
-        root.withdraw()  # Ocultar la ventana principal de Tkinter
-        root.attributes('-topmost', True)  # Poner el diálogo al frente
-        folder_path = filedialog.askdirectory(title="Seleccione una carpeta para guardar los archivos HTML")
-        root.destroy()
-        
-        if folder_path:
-            return jsonify({'success': True, 'path': folder_path})
-        else:
-            return jsonify({'success': False, 'error': 'No se seleccionó ninguna carpeta.'})
+        data = request.get_json() or {}
+        html_content = data.get('html')
+        product_data = data.get('product')
+
+        if not html_content or not product_data:
+            return jsonify({'success': False, 'error': 'Datos insuficientes para guardar el archivo.'})
+
+        save_message = save_html_locally(html_content, product_data, 'exports')
+        return jsonify({'success': True, 'message': save_message})
     except Exception as e:
-        logger.error(f"Error al abrir el diálogo de selección de carpeta: {e}")
-        return jsonify({'success': False, 'error': f'Error del sistema: {str(e)}'})
+        logger.error(f"Error guardando la previsualización: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 # ============================================================================
 # FUNCIONES AUXILIARES

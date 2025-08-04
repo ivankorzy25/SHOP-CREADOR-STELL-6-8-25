@@ -513,14 +513,23 @@ def generar_hero_section_inline(titulo, subtitulo):
         </div>
     '''
 
-def generar_info_cards_inline(info, caracteristicas):
-    """Genera las tarjetas de información con iconos mejorados y gráfico de consumo."""
+def generar_info_cards_inline_mejorado(info, caracteristicas):
+    """Versión mejorada con gráfico de consumo visible."""
     tipo_combustible = caracteristicas.get('tipo_combustible', 'diesel')
-    icono_combustible = ICONOS_SVG.get(tipo_combustible, ICONOS_SVG['diesel'])
+    
+    # Mapeo mejorado de iconos por tipo de combustible
+    iconos_combustible = {
+        'diesel': '<svg width="24" height="24" viewBox="0 0 24 24" fill="#333"><path d="M12 2C8.13 2 5 5.13 5 9c0 1.88.79 3.56 2 4.78V22h10v-8.22c1.21-1.22 2-2.9 2-4.78 0-3.87-3.13-7-7-7zm0 2c2.76 0 5 2.24 5 5s-2.24 5-5 5-5-2.24-5-5 2.24-5 5-5z"/></svg>',
+        'gas': '<svg width="24" height="24" viewBox="0 0 24 24" fill="#1976d2"><path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67z"/></svg>',
+        'nafta': '<svg width="24" height="24" viewBox="0 0 24 24" fill="#f44336"><path d="M12 3c-1.1 0-2 .9-2 2v12.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V5c0-1.1-.9-2-2-2zm-3 4H7v11h2V7zm6 0h-2v11h2V7z"/></svg>',
+        'gnc': '<svg width="24" height="24" viewBox="0 0 24 24" fill="#4caf50"><path d="M17.66 8L12 2.35 6.34 8C4.78 9.56 4 11.64 4 13.64s.78 4.11 2.34 5.67 3.61 2.35 5.66 2.35 4.1-.79 5.66-2.35S20 15.64 20 13.64s-.78-4.08-2.34-5.64z"/></svg>'
+    }
+    
+    icono_combustible = iconos_combustible.get(tipo_combustible.lower(), iconos_combustible['diesel'])
 
     # Lógica de potencia mejorada
-    potencia_valor = info.get('potencia_standby_valor') or info.get('potencia_valor')
-    potencia_unidad = info.get('potencia_standby_unidad') or info.get('potencia_unidad')
+    potencia_valor = info.get('potencia_standby_valor') or info.get('potencia_max_valor') or info.get('potencia_valor')
+    potencia_unidad = info.get('potencia_standby_unidad') or info.get('potencia_max_unidad') or info.get('potencia_unidad', 'W')
     
     if potencia_valor and potencia_unidad:
         potencia_str = f"{potencia_valor} {potencia_unidad.upper()}"
@@ -535,26 +544,84 @@ def generar_info_cards_inline(info, caracteristicas):
         potencia_str = " ".join(parts[:-1])
 
     potencia_kw = str(info.get('potencia_kw', '') or '').strip()
-    motor = str(info.get('motor') or info.get('modelo_motor', '') or '').strip()
-    consumo_valor = info.get('consumo_75_carga_valor', info.get('consumo_max_carga_valor', 'N/D'))
-    consumo_str = f"{consumo_valor} L/h" if consumo_valor != 'N/D' else 'N/D'
+    motor = str(info.get('motor') or info.get('potencia_motor_valor', '') or '').strip()
+    if motor and info.get('potencia_motor_unidad'):
+        motor += f" {info['potencia_motor_unidad']}"
+    
+    # Obtener consumo correctamente
+    consumo_valor = info.get('consumo_valor') or info.get('consumo_75_carga_valor') or info.get('consumo_max_carga_valor') or info.get('consumo')
+    consumo_unidad = info.get('consumo_unidad', 'L/h')
+    
+    if consumo_valor and str(consumo_valor) != 'N/D':
+        consumo_str = f"{consumo_valor} {consumo_unidad}"
+    else:
+        consumo_str = "N/D"
 
     # Generar badges de características
     badges_html = generar_badges_caracteristicas(info, caracteristicas)
+
+    # Función para generar el gráfico de consumo
+    def generar_grafico_consumo_mejorado(consumo_str):
+        """Genera un gráfico visual de consumo mejorado."""
+        try:
+            # Extraer valor numérico
+            import re
+            match = re.search(r'([\d.]+)', str(consumo_str))
+            if match:
+                consumo_valor = float(match.group(1))
+                # Normalizar para gráfico (asumiendo diferentes rangos según el tipo de equipo)
+                if info.get('potencia_kva'):
+                    potencia_num = float(str(info.get('potencia_kva', '100')).replace('KVA', '').strip())
+                    eficiencia = min(100, max(0, 100 - (consumo_valor / potencia_num * 50)))
+                else:
+                    eficiencia = min(100, max(0, 100 - (consumo_valor * 2)))
+            else:
+                eficiencia = 50
+        except:
+            eficiencia = 50
+
+        # Determinar color según eficiencia
+        if eficiencia >= 70:
+            color_principal = '#4CAF50'
+            texto_eficiencia = 'Alta Eficiencia'
+        elif eficiencia >= 40:
+            color_principal = '#FFC107'
+            texto_eficiencia = 'Eficiencia Media'
+        else:
+            color_principal = '#F44336'
+            texto_eficiencia = 'Consumo Elevado'
+
+        return f'''
+        <div style="margin-top: 10px; background: #f5f5f5; border-radius: 8px; padding: 10px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span style="font-size: 11px; color: #666; font-weight: 600;">EFICIENCIA DE CONSUMO</span>
+                <span style="font-size: 11px; color: {color_principal}; font-weight: 600;">{texto_eficiencia}</span>
+            </div>
+            <div style="background: #e0e0e0; height: 8px; border-radius: 4px; overflow: hidden; position: relative;">
+                <div style="background: linear-gradient(to right, #4CAF50 0%, #8BC34A 25%, #FFC107 50%, #FF9800 75%, #F44336 100%); height: 100%; width: 100%; opacity: 0.3;"></div>
+                <div style="position: absolute; top: 0; left: 0; background: {color_principal}; width: {eficiencia}%; height: 100%; transition: width 1s ease; box-shadow: 0 0 4px rgba(0,0,0,0.2);"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 5px;">
+                <span style="font-size: 10px; color: #4CAF50;">Eficiente</span>
+                <span style="font-size: 10px; color: #666;">{consumo_str}</span>
+                <span style="font-size: 10px; color: #F44336;">Alto consumo</span>
+            </div>
+        </div>
+        '''
 
     return f'''
         <!-- BADGES DE CARACTERÍSTICAS ESPECIALES -->
         {f'<div style="text-align: center; padding: 20px 30px 0 30px;">{badges_html}</div>' if badges_html else ''}
         
         <!-- ESPECIFICACIONES PRINCIPALES -->
-        <div style="padding: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+        <div style="padding: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
             
             <!-- Card Potencia con animación -->
             <div class="card-hover" style="background: #f8f9fa; border-radius: 12px; padding: 25px; border-left: 4px solid #ff6600; box-shadow: 0 2px 8px rgba(0,0,0,0.08); position: relative; overflow: hidden;">
                 <div style="position: absolute; top: -20px; right: -20px; width: 80px; height: 80px; background: rgba(255,102,0,0.1); border-radius: 50%;"></div>
                 <div style="display: flex; align-items: center; gap: 15px; position: relative;">
                     <div style="width: 48px; height: 48px; background: #fff3e0; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease;" class="icon-wrapper">
-                        {ICONOS_SVG['potencia'].replace('width="28"', 'width="24"').replace('height="28"', 'height="24"')}
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="#ff6600"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
                     </div>
                     <div>
                         <p style="margin: 0; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Potencia Máxima</p>
@@ -571,32 +638,32 @@ def generar_info_cards_inline(info, caracteristicas):
                 <div style="position: absolute; top: -20px; right: -20px; width: 80px; height: 80px; background: rgba(33,150,243,0.1); border-radius: 50%;"></div>
                 <div style="display: flex; align-items: center; gap: 15px; position: relative;">
                     <div style="width: 48px; height: 48px; background: #e3f2fd; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease;" class="icon-wrapper">
-                        {ICONOS_SVG['motor'].replace('width="28"', 'width="24"').replace('height="28"', 'height="24"').replace('fill="#ff6600"', 'fill="#2196F3"')}
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="#2196F3"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/></svg>
                     </div>
                     <div>
                         <p style="margin: 0; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Motor</p>
                         <p style="margin: 5px 0 0 0; font-size: 18px; font-weight: 600; color: #333;">
                             {motor if motor else 'N/D'}
                         </p>
-                        {f'<p style="margin: 0; font-size: 12px; color: #999;"><span style="width: 14px; height: 14px; display: inline-block; vertical-align: middle;">{ICONOS_SVG["rpm"]}</span> {info.get("rpm", "1500")} RPM</p>' if info.get('rpm') else ''}
+                        {f'<p style="margin: 0; font-size: 12px; color: #999;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2" style="display: inline-block; vertical-align: middle; margin-right: 4px;"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></svg>{info.get("rpm", "3000")} RPM</p>' if info.get('rpm') else ''}
                     </div>
                 </div>
             </div>
             
-            <!-- Card Combustible/Consumo mejorada con gráfico -->
+            <!-- Card Combustible/Consumo mejorada con gráfico VISIBLE -->
             <div class="card-hover" style="background: #f8f9fa; border-radius: 12px; padding: 25px; border-left: 4px solid #4CAF50; box-shadow: 0 2px 8px rgba(0,0,0,0.08); position: relative; overflow: hidden;">
                 <div style="position: absolute; top: -20px; right: -20px; width: 80px; height: 80px; background: rgba(76,175,80,0.1); border-radius: 50%;"></div>
                 <div style="display: flex; align-items: center; gap: 15px; position: relative;">
                     <div style="width: 48px; height: 48px; background: #e8f5e9; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease;" class="icon-wrapper">
-                        {icono_combustible.replace('width="28"', 'width="24"').replace('height="28"', 'height="24"')}
+                        {icono_combustible}
                     </div>
                     <div style="flex: 1;">
                         <p style="margin: 0; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Tipo de Combustible</p>
                         <p style="margin: 5px 0 0 0; font-size: 18px; font-weight: 600; color: #333; text-transform: capitalize;">
                             {tipo_combustible.upper()}
                         </p>
-                        {f'<p style="margin: 0; font-size: 14px; color: #999;">Consumo: {consumo_str}</p>' if consumo_str != "N/D" else ''}
-                        {generar_grafico_consumo(consumo_str) if consumo_str != "N/D" else ''}
+                        {f'<p style="margin: 5px 0 0 0; font-size: 14px; color: #666;">Consumo: <strong>{consumo_str}</strong></p>' if consumo_str != "N/D" else ''}
+                        {generar_grafico_consumo_mejorado(consumo_str) if consumo_str != "N/D" else ''}
                     </div>
                 </div>
             </div>
@@ -657,95 +724,152 @@ def generar_mini_cards_adicionales(info):
     return ''.join(mini_cards)
 
 def generar_specs_table_inline(info):
-    """Genera la tabla de especificaciones con iconos mejorados."""
-    # Mapeo extendido con nuevos iconos
+    """Genera la tabla de especificaciones con iconos específicos mejorados."""
+    
+    # Mapeo extendido con iconos específicos para cada tipo de campo
     spec_map = {
-        'modelo': ('Modelo', ICONOS_SVG.get('motor')),
-        'potencia_kva': ('Potencia Stand By', ICONOS_SVG.get('potencia')),
-        'potencia_prime': ('Potencia Prime', ICONOS_SVG.get('potencia')),
-        'voltaje': ('Voltaje', ICONOS_SVG.get('voltaje')),
-        'frecuencia': ('Frecuencia', ICONOS_SVG.get('frecuencia')),
-        'motor': ('Motor', ICONOS_SVG.get('motor')),
-        'alternador': ('Alternador', ICONOS_SVG.get('gear')),
-        'controlador': ('Controlador', ICONOS_SVG.get('automatico')),
-        'panel_control': ('Panel de Control', ICONOS_SVG.get('gear')),
-        'consumo': ('Consumo', ICONOS_SVG.get('consumo')),
-        'presion_bar': ('Presión', ICONOS_SVG.get('presion')),
-        'caudal_lts_min': ('Caudal', ICONOS_SVG.get('consumo')),
-        'rpm': ('RPM', ICONOS_SVG.get('rpm')),
-        'cilindrada': ('Cilindrada', ICONOS_SVG.get('motor')),
-        'temperatura_operacion': ('Temperatura Op.', ICONOS_SVG.get('temperatura')),
-        'dimensiones_mm': ('Dimensiones (LxAxH)', ICONOS_SVG.get('dimensiones')),
-        'peso_kg': ('Peso', ICONOS_SVG.get('peso')),
-        'capacidad_tanque_litros': ('Cap. Tanque', ICONOS_SVG.get('tanque')),
-        'nivel_sonoro': ('Nivel Sonoro', ICONOS_SVG.get('ruido')),
-        'certificaciones': ('Certificaciones', ICONOS_SVG.get('award')),
-        'garantia': ('Garantía', ICONOS_SVG.get('shield')),
-        'fases': ('Fases', ICONOS_SVG.get('plug')),
-        'combustible': ('Combustible', ICONOS_SVG.get('diesel')),
-        'arranque': ('Tipo de Arranque', ICONOS_SVG.get('gear')),
-        'bateria': ('Batería', ICONOS_SVG.get('battery')),
-        'autonomia_potencia_nominal_valor': ('Autonomía', ICONOS_SVG.get('clock'))
+        # Información básica
+        'modelo': ('Modelo', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#ff6600"><path d="M9 2v6h6V2H9zm7 0v6h6V6c0-2.2-1.8-4-4-4h-2zm0 8H8v6h8v-6zm2 0v6h4c2.2 0 4-1.8 4-4v-2h-6zm-10 0H2v2c0 2.2 1.8 4 4 4h2v-6zm0-2V2H6C3.8 2 2 3.8 2 6v2h6z"/></svg>'),
+        'serie': ('Serie', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#ff6600"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>'),
+        
+        # Potencia y energía
+        'potencia_kva': ('Potencia Stand By', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#ff6600"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>'),
+        'potencia_prime': ('Potencia Prime', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#ff9800"><path d="M11 2v11h3v9l7-12h-4l3-8z"/></svg>'),
+        'potencia_kw': ('Potencia en KW', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#ff5722"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>'),
+        
+        # Sistema eléctrico
+        'voltaje': ('Voltaje', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#f44336"><path d="M8 7v4h8V7l4 5-4 5v-4H8v4l-4-5 4-5z"/></svg>'),
+        'frecuencia': ('Frecuencia', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#e91e63"><path d="M16 6l-4 4-4-4v3l4 4 4-4zm0 6l-4 4-4-4v3l4 4 4-4z"/></svg>'),
+        'fases': ('Fases', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#9c27b0"><path d="M11 15h2v2h-2zm0-8h2v6h-2zm1-5C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>'),
+        
+        # Motor
+        'motor': ('Motor', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#2196f3"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/></svg>'),
+        'marca_motor': ('Marca Motor', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#3f51b5"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14z"/></svg>'),
+        'modelo_motor': ('Modelo Motor', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#00bcd4"><path d="M15 9H9v6h6V9zm-2 4h-2v-2h2v2zm8-2V9l-2-2h-2V5c0-1.1-.9-2-2-2H9c-1.1 0-2 .9-2 2v2H5L3 9v2c-1.1 0-2 .9-2 2v6h2c0 1.1.9 2 2 2s2-.9 2-2h10c0 1.1.9 2 2 2s2-.9 2-2h2v-6c0-1.1-.9-2-2-2z"/></svg>'),
+        'rpm': ('RPM', '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ff6600" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></svg>'),
+        'cilindrada': ('Cilindrada', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#795548"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-1.19 0-2.34-.26-3.33-.72l3.33-3.33 3.33 3.33c-.99.46-2.14.72-3.33.72z"/></svg>'),
+        
+        # Combustible y consumo
+        'combustible': ('Combustible', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#4caf50"><path d="M19.77 7.23l.01-.01-3.72-3.72L15 4.56l2.11 2.11c-.94.36-1.61 1.26-1.61 2.33 0 1.38 1.12 2.5 2.5 2.5.36 0 .69-.08 1-.21v7.21c0 .55-.45 1-1 1s-1-.45-1-1V14c0-1.1-.9-2-2-2h-1V5c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v16h10v-7.5h1.5v7.21c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V9c0-.69-.28-1.32-.73-1.77z"/></svg>'),
+        'consumo': ('Consumo', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#ff9800"><path d="M3 2v2h1v16h5v-8h6v8h5V4h1V2H3zm3 4h3v3H6V6zm6 0h3v3h-3V6zm6 0h3v3h-3V6z"/></svg>'),
+        'capacidad_tanque_litros': ('Capacidad Tanque', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#2196f3"><path d="M19 9v6c0 1.1-.9 2-2 2H7c-1.1 0-2-.9-2-2V9c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2zM7 11h10M12 7v4"/></svg>'),
+        'autonomia': ('Autonomía', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#009688"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.2 3.1.8-1.3-4.5-2.7z"/></svg>'),
+        
+        # Control y operación
+        'arranque': ('Tipo de Arranque', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#607d8b"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm3.5 6L12 10.5 8.5 8 11 5.5 12 6.55l3.5-3.5 1 1z"/></svg>'),
+        'controlador': ('Controlador', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#9e9e9e"><path d="M22 9V7h-2V5c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-2h2v-2h-2v-2h2v-2h-2V9h2zm-4 10H4V5h14v14z"/></svg>'),
+        'panel_control': ('Panel de Control', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#455a64"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg>'),
+        'alternador': ('Alternador', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#3f51b5"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>'),
+        'bateria': ('Batería', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#4caf50"><path d="M16.67 4H15V2h-6v2H7.33C6.6 4 6 4.6 6 5.33v15.33c0 .74.6 1.34 1.33 1.34h9.33c.74 0 1.34-.6 1.34-1.33V5.33C18 4.6 17.4 4 16.67 4z"/></svg>'),
+        
+        # Características físicas
+        'dimensiones_mm': ('Dimensiones (LxAxH)', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#ff5722"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14z"/></svg>'),
+        'peso_kg': ('Peso', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#795548"><path d="M12 3c-1.27 0-2.4.8-2.82 2H3v2h1.95l2 7c.17.59.71 1 1.32 1H15.73c.61 0 1.15-.41 1.32-1l2-7H21V5h-6.18C14.4 3.8 13.27 3 12 3zm0 2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1z"/></svg>'),
+        'peso': ('Peso', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#795548"><path d="M12 3c-1.27 0-2.4.8-2.82 2H3v2h1.95l2 7c.17.59.71 1 1.32 1H15.73c.61 0 1.15-.41 1.32-1l2-7H21V5h-6.18C14.4 3.8 13.27 3 12 3zm0 2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1z"/></svg>'),
+        
+        # Condiciones ambientales
+        'nivel_sonoro_dba_7m': ('Nivel Sonoro', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#673ab7"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>'),
+        'nivel_ruido': ('Nivel de Ruido', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#673ab7"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>'),
+        'temperatura_operacion': ('Temperatura Op.', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#f44336"><path d="M15 13V5a3 3 0 0 0-6 0v8a5 5 0 1 0 6 0m-3-9a1 1 0 0 1 1 1v5.3a3 3 0 1 1-2 0V5a1 1 0 0 1 1-1z"/></svg>'),
+        
+        # Certificaciones y garantías
+        'certificaciones': ('Certificaciones', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#ffc107"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>'),
+        'garantia': ('Garantía', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#4caf50"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>'),
+        
+        # Otros
+        'capacidad_aceite': ('Capacidad de Aceite', '<svg width="20" height="20" viewBox="0 0 24 24" fill="#ffeb3b"><path d="M10 2v6h4V2h-4zm0 8v12h4V10h-4z"/></svg>')
     }
 
     rows_html = ""
     row_count = 0
     
-    # Lista de claves a excluir de la tabla
-    exclude_keys = [
+    # Lista actualizada de claves a excluir
+    exclude_keys_complete = [
         'nombre', 'marca', 'familia', 'pdf_url', 'marketing_content', 
         'categoria_producto', 'caracteristicas_especiales',
+        # Todos los campos de valores y unidades separados
         'potencia_standby_valor', 'potencia_standby_unidad',
         'potencia_prime_valor', 'potencia_prime_unidad',
-        'voltaje_unidad', 'frecuencia_hz', 'frecuencia_hz_unidad',
+        'potencia_max_valor', 'potencia_max_unidad',
+        'voltaje_unidad', 'frecuencia_hz', 'frecuencia_hz_unidad', 'frecuencia_unidad',
         'consumo_75_carga_valor', 'consumo_75_carga_unidad',
         'consumo_max_carga_valor', 'consumo_max_carga_unidad',
+        'consumo_valor', 'consumo_unidad',
         'capacidad_tanque_combustible_l', 'capacidad_tanque_combustible_unidad',
-        'autonomia_potencia_nominal_unidad',
+        'capacidad_tanque_valor', 'capacidad_tanque_unidad',
+        'autonomia_potencia_nominal_unidad', 'autonomia_unidad',
         'autonomia_pot_nominal_valor', 'autonomia_pot_nominal_unidad',
-        'peso_unidad', 'tipo_arranque'
+        'autonomia_valor',
+        'peso_unidad', 'tipo_arranque',
+        'potencia_motor_valor', 'potencia_motor_unidad',
+        'cilindrada_valor', 'cilindrada_unidad',
+        'capacidad_aceite_valor', 'capacidad_aceite_unidad',
+        'nivel_ruido_valor', 'nivel_ruido_unidad',
+        'factor_potencia',
+        'cilindros'
     ]
 
-    # Agrupar especificaciones por categoría
+    # Agrupar especificaciones por categoría para mejor organización
     categorias = {
-        'Especificaciones Eléctricas': ['modelo', 'potencia_kva', 'potencia_prime', 'voltaje', 'frecuencia', 'fases'],
-        'Motor y Mecánica': ['motor', 'rpm', 'cilindrada', 'alternador'],
-        'Consumo y Autonomía': ['consumo', 'capacidad_tanque_litros', 'autonomia_potencia_nominal_valor'],
-        'Control y Operación': ['controlador', 'panel_control', 'arranque', 'bateria'],
-        'Dimensiones y Peso': ['dimensiones_mm', 'peso_kg'],
+        'Especificaciones Eléctricas': ['modelo', 'serie', 'potencia_kva', 'potencia_prime', 'potencia_kw', 'voltaje', 'frecuencia', 'fases'],
+        'Motor y Mecánica': ['motor', 'marca_motor', 'modelo_motor', 'rpm', 'cilindrada'],
+        'Combustible y Autonomía': ['combustible', 'consumo', 'capacidad_tanque_litros', 'autonomia'],
+        'Control y Operación': ['arranque', 'controlador', 'panel_control', 'alternador', 'bateria'],
+        'Características Físicas': ['dimensiones_mm', 'peso_kg', 'peso'],
+        'Condiciones Ambientales': ['nivel_sonoro_dba_7m', 'nivel_ruido', 'temperatura_operacion'],
         'Otros': []
     }
 
-    # Iterar sobre los datos del producto
-    for key, value in info.items():
-        if key in exclude_keys or not value or str(value).strip().lower() in ['n/d', 'nan', 'none', '']:
-            continue
+    # Procesar datos por categoría
+    for categoria, campos in categorias.items():
+        categoria_tiene_datos = False
+        
+        # Verificar si hay datos en esta categoría
+        for key, value in info.items():
+            if key in exclude_keys_complete or not value or str(value).strip().lower() in ['n/d', 'nan', 'none', '']:
+                continue
             
-        # Obtener etiqueta e icono del mapa
-        label, icon = spec_map.get(key, (key.replace('_', ' ').capitalize(), ICONOS_SVG.get('specs')))
+            if key in campos or (categoria == 'Otros' and not any(key in c for c_list in categorias.values() for c in c_list)):
+                categoria_tiene_datos = True
+                break
         
-        bg_color = '#f8f9fa' if row_count % 2 == 0 else 'white'
-        icon_html = icon.replace('fill="#D32F2F"', 'fill="#ff6600"') if icon else ''
-        
-        # Añadir efecto hover a las filas
-        rows_html += f'''
-                <tr class="spec-row" style="background: {bg_color}; border-bottom: 1px solid #eee; transition: all 0.2s ease;">
-                    <td style="padding: 15px 20px; display: flex; align-items: center; gap: 10px;">
-                        <div style="width: 20px; height: 20px; opacity: 0.7; transition: all 0.3s ease;">{icon_html}</div>
-                        <span style="color: #666; font-weight: 500;">{label}</span>
+        if categoria_tiene_datos and row_count > 0:
+            # Agregar separador de categoría
+            rows_html += f'''
+                <tr style="background: #f5f5f5; border-top: 2px solid #ddd;">
+                    <td colspan="2" style="padding: 10px 20px; font-weight: 600; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">
+                        {categoria}
                     </td>
-                    <td style="padding: 15px 20px; font-weight: 600; color: #333;">{value}</td>
                 </tr>'''
-        row_count += 1
+        
+        # Agregar filas de la categoría
+        for key, value in info.items():
+            if key in exclude_keys_complete or not value or str(value).strip().lower() in ['n/d', 'nan', 'none', '']:
+                continue
+            
+            if key in campos or (categoria == 'Otros' and not any(key in c for c_list in categorias.values() for c in c_list)):
+                label, icon = spec_map.get(key, (key.replace('_', ' ').capitalize(), '<svg width="20" height="20" viewBox="0 0 24 24" fill="#666"><circle cx="12" cy="12" r="2"/></svg>'))
+                
+                bg_color = '#f8f9fa' if row_count % 2 == 0 else 'white'
+                
+                rows_html += f'''
+                    <tr class="spec-row" style="background: {bg_color}; border-bottom: 1px solid #eee; transition: all 0.2s ease;">
+                        <td style="padding: 15px 20px; display: flex; align-items: center; gap: 10px;">
+                            <div style="width: 20px; height: 20px; opacity: 0.7; transition: all 0.3s ease;">{icon}</div>
+                            <span style="color: #666; font-weight: 500;">{label}</span>
+                        </td>
+                        <td style="padding: 15px 20px; font-weight: 600; color: #333;">{value}</td>
+                    </tr>'''
+                row_count += 1
     
     return f'''
-        <!-- TABLA DE ESPECIFICACIONES TECNICAS MEJORADA -->
-        <div style="background: #FFC107; margin:  30px; padding: 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); position: relative;">
+        <!-- TABLA DE ESPECIFICACIONES TÉCNICAS MEJORADA -->
+        <div style="background: #FFC107; margin: 30px; padding: 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); position: relative;">
             <!-- Decoración de esquina -->
             <div style="position: absolute; top: -10px; right: -10px; width: 60px; height: 60px; background: #ff6600; border-radius: 50%; opacity: 0.2;"></div>
             
             <h2 style="color: #333; font-size: 28px; margin: 0 0 25px 0; text-align: center; font-weight: 700; position: relative;">
-                {ICONOS_SVG['specs'].replace('width="30"', 'width="36"').replace('height="30"', 'height="36"').replace('fill="#000"', 'fill="#333"')}
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="#333"><path d="M9 17H7v-7h2m4 7h-2V7h2m4 10h-2v-4h2m4 4h-2V4h2v13z"/></svg>
                 <br>
                 ESPECIFICACIONES TÉCNICAS COMPLETAS
             </h2>

@@ -689,10 +689,14 @@ def detectar_caracteristicas_universal(info, texto_pdf=''):
         })
     
     # Detección de portabilidad basada en múltiples factores
-    peso_str = str(info.get('peso_kg', '999')).replace('kg', '').strip()
+    peso_str = str(info.get('peso_kg', '999')).replace('kg', '').replace('Kg', '').replace('KG', '').strip()
     try:
         peso = float(peso_str)
-        if peso < 100 or any(word in texto_busqueda for word in ['portátil', 'portatil', 'portable', 'movil', 'móvil']):
+        # Para generadores nafteros/gasolina, menos de 60kg es portátil
+        # Para otros equipos, menos de 100kg puede ser portátil
+        limite_peso = 60 if caracteristicas['tipo_combustible'] in ['nafta', 'gasolina'] else 100
+        
+        if peso < limite_peso or any(word in texto_busqueda for word in ['portátil', 'portatil', 'portable', 'movil', 'móvil']):
             caracteristicas['es_portatil'] = True
             caracteristicas['badges_especiales'].append({
                 'texto': 'PORTÁTIL',
@@ -972,6 +976,45 @@ def validar_y_limpiar_datos(info):
     """Compatibilidad con código existente"""
     return validar_y_limpiar_datos_universal(info)
 
+def extraer_info_motor_limpia(info):
+    """
+    Extrae información limpia del motor evitando redundancias
+    """
+    motor_raw = info.get('motor', 'N/D')
+    
+    # Si no hay info de motor o es N/D, intentar construir desde otros campos
+    if not motor_raw or motor_raw == 'N/D':
+        # Intentar con potencia_motor_valor y unidad
+        if info.get('potencia_motor_valor') and info.get('potencia_motor_unidad'):
+            return f"Motor {info['potencia_motor_valor']} {info['potencia_motor_unidad']}"
+        # Intentar con potencia_hp
+        elif info.get('potencia_hp'):
+            return f"Motor {info['potencia_hp']} HP"
+        return 'Motor estándar'
+    
+    motor_str = str(motor_raw)
+    
+    # Si dice "Motor X HP", dejar solo "Motor X HP" (no duplicar)
+    if motor_str.lower().startswith('motor '):
+        # Ya tiene el formato correcto
+        return motor_str
+    
+    # Si es solo marca/modelo (ej: "CUMMINS 6BT5.9-G2", "Honda GX160")
+    # dejarlo como está
+    if any(marca in motor_str.upper() for marca in ['CUMMINS', 'HONDA', 'YAMAHA', 'PERKINS', 'KOHLER', 'BRIGGS']):
+        return motor_str
+    
+    # Si es solo potencia (ej: "6.5 HP", "7HP")
+    if re.match(r'^\d+\.?\d*\s*HP$', motor_str, re.IGNORECASE):
+        return f"Motor {motor_str}"
+    
+    # Si dice algo como "LOGUS 7HP", dejarlo como está
+    if re.search(r'\w+\s+\d+\.?\d*\s*HP', motor_str, re.IGNORECASE):
+        return motor_str
+    
+    # Para otros casos, devolver como está
+    return motor_str
+
 def procesar_datos_para_tabla(info):
     """
     Procesa y combina campos antes de generar la tabla
@@ -979,9 +1022,8 @@ def procesar_datos_para_tabla(info):
     # Primero validar y limpiar
     datos_procesados = validar_y_limpiar_datos(info)
     
-    # Combinar campos de potencia motor
-    if 'potencia_motor_valor' in info and 'potencia_motor_unidad' in info:
-        datos_procesados['motor'] = f"{info.get('potencia_motor_valor', '')} {info.get('potencia_motor_unidad', '')}"
+    # Procesar motor de forma inteligente
+    datos_procesados['motor'] = extraer_info_motor_limpia(datos_procesados)
     
     # PROCESAR CONSUMO - COMBINAR VALOR Y UNIDAD
     consumo_valor = datos_procesados.get('consumo_75_carga_valor', 
@@ -1220,44 +1262,93 @@ def generar_mini_cards_adicionales(info):
     """Genera mini cards para características adicionales."""
     mini_cards = []
     
-    # Autonomía
-    if info.get('autonomia_potencia_nominal_valor'):
-        mini_cards.append(f'''
-        <div style="background: #fff3e0; border-radius: 8px; padding: 15px; text-align: center; border: 1px solid #ffcc80;">
-            <div style="width: 32px; height: 32px; margin: 0 auto 8px;">{ICONOS_SVG['clock']}</div>
-            <p style="margin: 0; font-size: 12px; color: #666;">Autonomía</p>
-            <p style="margin: 5px 0 0 0; font-size: 16px; font-weight: 600; color: #ff6600;">{info['autonomia_potencia_nominal_valor']} horas</p>
-        </div>
-        ''')
+    # Definir características a mostrar con sus configuraciones
+    caracteristicas_cards = [
+        {
+            'campos': ['autonomia_potencia_nominal_valor', 'autonomia_horas', 'autonomia'],
+            'nombre': 'Autonomía',
+            'color': '#ff6600',
+            'bg_color': '#fff3e0',
+            'border_color': '#ffcc80',
+            'icono': 'clock',
+            'unidad': 'horas',
+            'agregar_unidad': lambda v: 'h' not in str(v).lower() and 'hora' not in str(v).lower()
+        },
+        {
+            'campos': ['capacidad_tanque_combustible_l', 'capacidad_tanque_litros', 'capacidad_tanque'],
+            'nombre': 'Tanque',
+            'color': '#2196F3',
+            'bg_color': '#e3f2fd',
+            'border_color': '#90caf9',
+            'icono': 'tanque',
+            'unidad': 'L',
+            'agregar_unidad': lambda v: 'l' not in str(v).lower() and 'litro' not in str(v).lower()
+        },
+        {
+            'campos': ['nivel_sonoro_dba_7m', 'nivel_ruido_dba', 'nivel_sonoro_dba', 'nivel_ruido'],
+            'nombre': 'Nivel Sonoro',
+            'color': '#9c27b0',
+            'bg_color': '#f3e5f5',
+            'border_color': '#ce93d8',
+            'icono': 'ruido',
+            'unidad': 'dBA',
+            'agregar_unidad': lambda v: 'db' not in str(v).lower()
+        },
+        {
+            'campos': ['temperatura_operacion', 'temperatura_trabajo', 'temperatura_max'],
+            'nombre': 'Temperatura',
+            'color': '#f44336',
+            'bg_color': '#ffebee',
+            'border_color': '#ef9a9a',
+            'icono': 'temperatura',
+            'unidad': '°C',
+            'agregar_unidad': lambda v: '°' not in str(v) and 'c' not in str(v).lower()
+        },
+        {
+            'campos': ['presion_bar', 'presion_max_bar', 'presion'],
+            'nombre': 'Presión',
+            'color': '#673AB7',
+            'bg_color': '#ede7f6',
+            'border_color': '#b39ddb',
+            'icono': 'presion',
+            'unidad': 'BAR',
+            'agregar_unidad': lambda v: 'bar' not in str(v).lower()
+        },
+        {
+            'campos': ['cilindrada_cc', 'cilindrada'],
+            'nombre': 'Cilindrada',
+            'color': '#795548',
+            'bg_color': '#efebe9',
+            'border_color': '#bcaaa4',
+            'icono': 'motor',
+            'unidad': 'cc',
+            'agregar_unidad': lambda v: 'cc' not in str(v).lower()
+        }
+    ]
     
-    # Tanque
-    if info.get('capacidad_tanque_combustible_l'):
-        mini_cards.append(f'''
-        <div style="background: #e3f2fd; border-radius: 8px; padding: 15px; text-align: center; border: 1px solid #90caf9;">
-            <div style="width: 32px; height: 32px; margin: 0 auto 8px;">{ICONOS_SVG['tanque']}</div>
-            <p style="margin: 0; font-size: 12px; color: #666;">Tanque</p>
-            <p style="margin: 5px 0 0 0; font-size: 16px; font-weight: 600; color: #2196F3;">{info['capacidad_tanque_combustible_l']}</p>
-        </div>
-        ''')
-    
-    # Nivel sonoro
-    if info.get('nivel_sonoro_dba_7m'):
-        nivel_sonoro = str(info['nivel_sonoro_dba_7m']).replace('dBA', '').strip()
-        mini_cards.append(f'''
-        <div style="background: #f3e5f5; border-radius: 8px; padding: 15px; text-align: center; border: 1px solid #ce93d8;">
-            <div style="width: 32px; height: 32px; margin: 0 auto 8px;">{ICONOS_SVG['ruido']}</div>
-            <p style="margin: 0; font-size: 12px; color: #666;">Nivel Sonoro</p>
-            <p style="margin: 5px 0 0 0; font-size: 16px; font-weight: 600; color: #9c27b0;">{nivel_sonoro} dBA</p>
-        </div>
-        ''')
-    
-    # Temperatura
-    if info.get('temperatura_operacion'):
-        mini_cards.append(f'''
-        <div style="background: #ffebee; border-radius: 8px; padding: 15px; text-align: center; border: 1px solid #ef9a9a;">
-            <div style="width: 32px; height: 32px; margin: 0 auto 8px;">{ICONOS_SVG['temperatura']}</div>
-            <p style="margin: 0; font-size: 12px; color: #666;">Temperatura Op.</p>
-            <p style="margin: 5px 0 0 0; font-size: 16px; font-weight: 600; color: #f44336;">{info['temperatura_operacion']}°C</p>
+    # Generar cards solo para campos con datos
+    for config in caracteristicas_cards:
+        valor = None
+        # Buscar el primer campo disponible
+        for campo in config['campos']:
+            if info.get(campo) and str(info[campo]).strip() not in ['N/D', '', 'None']:
+                valor = str(info[campo]).strip()
+                break
+        
+        if valor:
+            # Limpiar el valor de unidades duplicadas
+            for unidad in ['dBA', 'dB', 'BAR', 'L', 'cc', '°C']:
+                valor = valor.replace(f' {unidad} {unidad}', f' {unidad}')
+            
+            # Agregar unidad si no la tiene
+            if config['agregar_unidad'](valor):
+                valor = f"{valor} {config['unidad']}"
+                
+            mini_cards.append(f'''
+        <div style="background: {config['bg_color']}; border-radius: 8px; padding: 15px; text-align: center; border: 1px solid {config['border_color']};">
+            <div style="width: 32px; height: 32px; margin: 0 auto 8px;">{ICONOS_SVG.get(config['icono'], ICONOS_SVG['dot'])}</div>
+            <p style="margin: 0; font-size: 12px; color: #666;">{config['nombre']}</p>
+            <p style="margin: 5px 0 0 0; font-size: 16px; font-weight: 600; color: {config['color']};">{valor}</p>
         </div>
         ''')
     
@@ -1461,22 +1552,31 @@ def generar_specs_table_inline(info):
     # Lista actualizada de claves a excluir
     exclude_keys = [
         'nombre', 'marca', 'familia', 'pdf_url', 'marketing_content',
-        'categoria_producto', 'caracteristicas_especiales',
+        'categoria_producto', 'caracteristicas_especiales', 'eficiencia_data',
+        'nota_consumo', 'tipo_combustible',
+        # Valores y unidades separados
         'potencia_standby_valor', 'potencia_standby_unidad',
         'potencia_prime_valor', 'potencia_prime_unidad',
         'consumo_75_carga_valor', 'consumo_75_carga_unidad',
         'consumo_max_carga_valor', 'consumo_max_carga_unidad',
-        # AGREGAR ESTOS:
-        'potencia_motor_valor',
-        'potencia_motor_unidad',
-        'voltaje_unidad',
-        'frecuencia_hz',
-        'voltaje_valor',
-        'potencia_valor',
-        'potencia_unidad',
-        'nivel_ruido_dba',
-        'nivel_ruido_valor', 
-        'nivel_ruido_unidad',
+        'potencia_motor_valor', 'potencia_motor_unidad',
+        'voltaje_valor', 'voltaje_unidad',
+        'potencia_valor', 'potencia_unidad',
+        'nivel_ruido_dba', 'nivel_ruido_valor', 'nivel_ruido_unidad',
+        # Campos de unidades generales
+        'potencia_hp_unidad', 'potencia_kva_unidad', 'potencia_kw_unidad',
+        'voltaje_v_unidad', 'frecuencia_hz_unidad', 
+        'capacidad_tanque_combustible_l_unidad',
+        'consumo_unidad', 'autonomia_horas_unidad', 
+        'autonomia_potencia_nominal_unidad',
+        'peso_kg_unidad', 'dimensiones_mm_unidad',
+        'cilindrada_cc_unidad', 'capacidad_aceite_l_unidad',
+        'nivel_sonoro_dba_unidad', 'temperatura_unidad',
+        'presion_bar_unidad', 'caudal_lts_min_unidad',
+        'caudal_lph_unidad', 'capacidad_tanque_litros_unidad',
+        'ancho_labranza_cm_unidad', 'diametro_max_rama_cm_unidad',
+        'potencia_max_w_unidad', 'fuerza_impacto_kg_unidad',
+        'profundidad_corte_mm_unidad'
     ]
 
     # Agrupar especificaciones por categoría para mejor organización
@@ -1502,7 +1602,11 @@ def generar_specs_table_inline(info):
         
         if not categoria_tiene_datos and categoria == 'Otros':
              for key, value in info.items():
-                if key not in exclude_keys and value not in [None, '', 'N/D']:
+                # Excluir campos de unidades usando regex
+                if (key not in exclude_keys and 
+                    not key.endswith('_unidad') and 
+                    not key.endswith('_unit') and 
+                    value not in [None, '', 'N/D']):
                     if not any(key in cat_campos for cat_campos in categorias.values()):
                         categoria_tiene_datos = True
                         break
@@ -1519,7 +1623,11 @@ def generar_specs_table_inline(info):
             
             # Agregar filas de la categoría
             for key, value in sorted(info.items()):
-                if key in exclude_keys or value in [None, '', 'N/D']:
+                # Filtrar campos excluidos y campos de unidades
+                if (key in exclude_keys or 
+                    key.endswith('_unidad') or 
+                    key.endswith('_unit') or 
+                    value in [None, '', 'N/D']):
                     continue
 
                 is_in_category = key in campos

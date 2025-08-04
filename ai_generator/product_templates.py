@@ -6,7 +6,6 @@ from .premium_generator_v2 import (
     ICONOS_SVG,
     generar_hero_section_inline,
     generar_specs_table_inline,
-    generar_feature_badge_inline,
     generar_benefits_section_inline,
     generar_cta_section_inline,
     generar_contact_footer_inline,
@@ -40,8 +39,6 @@ def generar_html_generador(info, marketing_content, caracteristicas, config):
         {generar_info_cards_inline(info, caracteristicas)}
         
         {generar_specs_table_inline(info)}
-        
-        {generar_feature_badge_inline(caracteristicas)}
         
         {generar_content_sections_inline(info, marketing_content)}
         

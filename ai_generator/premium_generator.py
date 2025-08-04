@@ -11,6 +11,19 @@ import fitz  # PyMuPDF
 import json
 from pathlib import Path
 import unicodedata
+from .premium_generator_v2 import (
+    generar_titulo_producto,
+    generar_subtitulo_producto,
+    generar_hero_section_inline,
+    generar_info_cards_inline_mejorado,
+    generar_specs_table_inline,
+    generar_badges_caracteristicas,
+    generar_content_sections_inline,
+    generar_benefits_section_inline,
+    generar_cta_section_inline,
+    generar_contact_footer_inline,
+    generar_css_hover_effects
+)
 
 # ============================================================================
 # FUNCIONES DE LIMPIEZA DE TEXTO
@@ -56,40 +69,6 @@ def eliminar_tildes_y_especiales(texto):
         '·': '',
         '§': 'seccion',
         '¶': 'parrafo',
-        '✓': '',
-        '✔': '',
-        '✗': '',
-        '✘': '',
-        '★': '',
-        '☆': '',
-        '♦': '',
-        '♥': '',
-        '♠': '',
-        '♣': '',
-        '►': '',
-        '◄': '',
-        '▲': '',
-        '▼': '',
-        '→': '',
-        '←': '',
-        '↑': '',
-        '↓': '',
-        '↔': '',
-        '⇒': '',
-        '⇐': '',
-        '⇑': '',
-        '⇓': '',
-        '⇔': '',
-        '✅': '',
-        '❌': '',
-        '⚠️': '',
-        '⚡': '',
-        '🔧': '',
-        '📍': '',
-        '🏢': '',
-        '💡': '',
-        '🔨': '',
-        '🌟': ''
     }
     
     for char_especial, reemplazo in reemplazos.items():
@@ -113,96 +92,24 @@ ICONOS_SVG = {
     'shield': '<svg width="28" height="28" viewBox="0 0 24 24" fill="#ff6600"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>',
     'tools': '<svg width="28" height="28" viewBox="0 0 24 24" fill="#ff6600"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>',
     'specs': '<svg width="30" height="30" viewBox="0 0 24 24" fill="#000"><path d="M9 17H7v-7h2m4 7h-2V7h2m4 10h-2v-4h2m4 4h-2V4h2v13z"/></svg>',
-    
-    # Iconos de combustibles
-    'gas': '<svg width="28" height="28" viewBox="0 0 24 24" fill="#1976d2"><path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67z"/></svg>',
-    'diesel': '<svg width="28" height="28" viewBox="0 0 24 24" fill="#333"><path d="M12 2C8.13 2 5 5.13 5 9c0 1.88.79 3.56 2 4.78V22h10v-8.22c1.21-1.22 2-2.9 2-4.78 0-3.87-3.13-7-7-7zm0 2c2.76 0 5 2.24 5 5s-2.24 5-5 5-5-2.24-5-5 2.24-5 5-5z"/></svg>',
-    'nafta': '<svg width="28" height="28" viewBox="0 0 24 24" fill="#f44336"><path d="M12 3c-1.1 0-2 .9-2 2v12.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V5c0-1.1-.9-2-2-2zm-3 4H7v11h2V7zm6 0h-2v11h2V7z"/></svg>',
-    
-    # Iconos de beneficios
-    'quality': '<svg width="28" height="28" viewBox="0 0 24 24" fill="#4caf50"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>',
-    'money': '<svg width="28" height="28" viewBox="0 0 24 24" fill="#ff6600"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>',
-    
-    # Iconos de contacto
-    'whatsapp': '<svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>',
-    'pdf': '<svg width="24" height="24" viewBox="0 0 24 24" fill="#000"><path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm10 5.5h1v-3h-1v3z"/></svg>',
-    'email': '<svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>',
-    'phone': '<svg width="24" height="24" viewBox="0 0 24 24" fill="#ff6600"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>',
-    'web': '<svg width="24" height="24" viewBox="0 0 24 24" fill="#ff6600"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>',
-    
-    # Iconos de especificaciones técnicas
-    'voltaje': '<svg width="20" height="20" viewBox="0 0 24 24" fill="#D32F2F"><path d="M11 15h2v2h-2zm0-8h2v6h-2zm1-5C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>',
-    'frecuencia': '<svg width="20" height="20" viewBox="0 0 24 24" fill="#D32F2F"><path d="M16 6l-4 4-4-4v3l4 4 4-4zm0 6l-4 4-4-4v3l4 4 4-4z"/></svg>',
-    'cilindrada': '<svg width="20" height="20" viewBox="0 0 24 24" fill="#D32F2F"><path d="M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2z"/></svg>',
-    'consumo': '<svg width="20" height="20" viewBox="0 0 24 24" fill="#D32F2F"><path d="M19.77 7.23l.01-.01-3.72-3.72L15 4.56l2.11 2.11c-.94.36-1.61 1.26-1.61 2.33 0 1.38 1.12 2.5 2.5 2.5.36 0 .69-.08 1-.21v7.21c0 .55-.45 1-1 1s-1-.45-1-1V14c0-1.1-.9-2-2-2h-1V5c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v16h10v-7.5h1.5v5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V9c0-.69-.28-1.32-.73-1.77z"/></svg>',
-    'ruido': '<svg width="20" height="20" viewBox="0 0 24 24" fill="#D32F2F"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1-3.29-2.5-4.03v8.05c1.5-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>',
-    'dimensiones': '<svg width="20" height="20" viewBox="0 0 24 24" fill="#D32F2F"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14z"/></svg>',
-    'peso': '<svg width="20" height="20" viewBox="0 0 24 24" fill="#D32F2F"><path d="M12 3c-1.27 0-2.4.8-2.82 2H3v2h1.95l2 7c.17.59.71 1 1.32 1H15.73c.61 0 1.15-.41 1.32-1l2-7H21V5h-6.18C14.4 3.8 13.27 3 12 3zm0 2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1z"/></svg>',
-    
-    # Iconos para listas (basados en la última imagen)
-    'check': '<svg width="20" height="20" viewBox="0 0 24 24" fill="#4caf50"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
-    'dot': '<svg width="20" height="20" viewBox="0 0 24 24" fill="#ff6600"><circle cx="12" cy="12" r="6"/></svg>',
-    'autonomia_L': '<svg width="20" height="20" viewBox="0 0 24 24" fill="#4caf50"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h4v2h-2v4z"/></svg>',
-    'wrench': '<svg width="20" height="20" viewBox="0 0 24 24" fill="#ff6600"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>',
-    'lightning': '<svg width="20" height="20" viewBox="0 0 24 24" fill="#ff6600"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>',
-    'location': '<svg width="20" height="20" viewBox="0 0 24 24" fill="#4caf50"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13S15.87 2 12 2zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>',
-    'business': '<svg width="20" height="20" viewBox="0 0 24 24" fill="#4caf50"><path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm10 8H8v-2h2v-2H8V9h8v10zm-2-8h-2v2h2v-2z"/></svg>'
 }
 
 # ============================================================================
 # FUNCIONES AUXILIARES (Extracción y Validación de Datos)
 # ============================================================================
-def obtener_icono_para_item(texto_item):
-    """Devuelve un icono SVG basado en palabras clave en el texto del item."""
-    texto_item = texto_item.lower()
-    # Mapeo de palabras clave a iconos
-    mapa_iconos = {
-        'wrench': ['obra', 'construccion', 'mantenimiento', 'reparacion', 'robusta', 'duradera'],
-        'location': ['fincas', 'zonas rurales', 'agricultura', 'ganaderia'],
-        'lightning': ['eventos', 'aire libre', 'camping'],
-        'business': ['hogar', 'pequenos negocios', 'industrial', 'emergencias'],
-        'dot': ['seguridad', 'protegidos', 'potencia', 'equipos', 'alimenta', 'avr'],
-        'autonomia_L': ['autonomia', 'horas', 'tanque', 'consumo']
-    }
-    
-    for icono, keywords in mapa_iconos.items():
-        if any(keyword in texto_item for keyword in keywords):
-            return ICONOS_SVG[icono]
-            
-    # Si no coincide nada, se devuelve el icono de punto naranja como fallback
-    return ICONOS_SVG['dot']
-
 def extraer_info_tecnica(row):
     """Extrae y normaliza la información técnica de una fila de datos de la BD."""
-    # Mapeo de columnas SQL a claves del diccionario 'info'
     info = {
         'nombre': row.get('Descripción', 'Producto sin nombre'),
         'marca': row.get('Marca', 'N/D'),
         'modelo': row.get('Modelo', 'N/D'),
         'familia': row.get('Familia', ''),
         'potencia_kva': row.get('Potencia', 'N/D'),
-        'potencia_kw': '', # Se buscará en el PDF
         'voltaje': row.get('Tensión', 'N/D'),
-        'frecuencia': '50', # Valor por defecto, se puede buscar en PDF
         'motor': row.get('Motor', 'N/D'),
-        'alternador': 'N/D', # Se buscará en el PDF
-        'cilindrada': '', # Se buscará en el PDF
-        'consumo': 'N/D', # Se buscará en el PDF
-        'tanque': 'N/D', # Se buscará en el PDF
-        'ruido': 'N/D', # Se buscará en el PDF
-        'largo': '', 'ancho': '', 'alto': '', # Se buscará en el PDF
         'peso': row.get('Peso_(kg)', 'N/D'),
         'pdf_url': row.get('URL_PDF', '')
     }
-    
-    # Extraer dimensiones si vienen juntas
-    if row.get('Dimensiones'):
-        dims = str(row.get('Dimensiones')).split('x')
-        if len(dims) == 3:
-            info['largo'] = dims[0].strip()
-            info['ancho'] = dims[1].strip()
-            info['alto'] = dims[2].strip()
-            
     return info
 
 def extraer_texto_pdf(pdf_url, print_callback=print):
@@ -211,7 +118,6 @@ def extraer_texto_pdf(pdf_url, print_callback=print):
         response = requests.get(pdf_url, timeout=10)
         response.raise_for_status()
         
-        # Usar PyMuPDF (fitz) que es más robusto
         with fitz.open(stream=response.content, filetype="pdf") as doc:
             texto_completo = ""
             for page in doc:
@@ -231,34 +137,6 @@ def extraer_texto_pdf(pdf_url, print_callback=print):
         print_callback(f"❌ Error al procesar el PDF desde {pdf_url}: {e}")
         return None
 
-def extraer_datos_tecnicos_del_pdf(texto_pdf, info_actual, print_callback=print):
-    """Intenta extraer y actualizar datos técnicos desde el texto de un PDF con regex mejoradas."""
-    info_actualizada = info_actual.copy()
-    
-    # Patrones de regex mejorados para ser más flexibles
-    patrones = {
-        'potencia_kva': r'(\d{1,4}[\.,]?\d{1,2})\s*kVA',
-        'potencia_kw': r'(\d{1,4}[\.,]?\d{1,2})\s*kW',
-        'voltaje': r'(\d{3}(?:/\d{3})?)\s*V',
-        'consumo': r'Consumo(?: de combustible)?\s*\(?L/h\)?\s*[:\s]*([\d\.]+)',
-        'tanque': r'(?:Capacidad del tanque|Tanque de combustible)\s*\(?L\)?\s*[:\s]*(\d+)',
-        'peso': r'Peso\s*\(?kg\)?\s*[:\s]*(\d+)',
-        'ruido': r'Nivel de ruido\s*\(?dBA?@\d+m\)?\s*[:\s]*(\d+)',
-        'motor': r'Motor\s*[:\s]*([A-Za-z0-9\.\-\s]+)',
-        'alternador': r'Alternador\s*[:\s]*([A-Za-z0-9\.\-\s]+)',
-        'cilindrada': r'Cilindrada\s*\(cc\)\s*[:\s]*(\d+)'
-    }
-    
-    for campo, patron in patrones.items():
-        match = re.search(patron, texto_pdf, re.IGNORECASE | re.DOTALL)
-        if match:
-            valor_extraido = match.group(1).strip()
-            # Siempre se da prioridad al dato del PDF
-            info_actualizada[campo] = valor_extraido
-            print_callback(f"  -> Dato extraído de PDF: {campo} = {valor_extraido}")
-            
-    return info_actualizada
-
 def validar_caracteristicas_producto(info, texto_pdf):
     """Detecta características especiales del producto."""
     caracteristicas = {
@@ -268,12 +146,10 @@ def validar_caracteristicas_producto(info, texto_pdf):
         'tipo_combustible': 'diesel' # Por defecto
     }
     
-    # Combinar toda la información de texto disponible
     texto_busqueda = f"{info.get('nombre', '')} {info.get('familia', '')}".lower()
     if texto_pdf:
         texto_busqueda += " " + texto_pdf.lower()
 
-    # Check from 'caracteristicas_especiales' if available from AI extraction
     special_features = info.get('caracteristicas_especiales', [])
     if any('tta' in feature.lower() for feature in special_features):
         caracteristicas['tiene_tta'] = True
@@ -282,7 +158,6 @@ def validar_caracteristicas_producto(info, texto_pdf):
     if any('inverter' in feature.lower() for feature in special_features):
         caracteristicas['es_inverter'] = True
 
-    # Fallback to text search if not in special features
     if not caracteristicas['tiene_tta'] and any(keyword in texto_busqueda for keyword in ['tta', 'transferencia automatica', 'ats']):
         caracteristicas['tiene_tta'] = True
     if not caracteristicas['tiene_cabina'] and any(keyword in texto_busqueda for keyword in ['cabinado', 'insonorizado', 'soundproof', 'silent']):
@@ -290,7 +165,6 @@ def validar_caracteristicas_producto(info, texto_pdf):
     if not caracteristicas['es_inverter'] and 'inverter' in texto_busqueda:
         caracteristicas['es_inverter'] = True
 
-    # Determine fuel type
     if info.get('combustible'):
         fuel = info.get('combustible').lower()
         if 'gas' in fuel:
@@ -304,476 +178,12 @@ def validar_caracteristicas_producto(info, texto_pdf):
         
     return caracteristicas
 
-# ============================================================================
-# FUNCIONES DE GENERACIÓN DE HTML (ACTUALIZADAS)
-# ============================================================================
-
-def generar_hero_section(info, caracteristicas):
-    """Genera la sección hero dinámica."""
-    # Definir valores no deseados al inicio para que esté disponible en toda la función
-    valores_no_deseados = ['N/D', 'n/d', 'N/A', 'n/a', 'None', 'null', '']
-    
-    # Primero intentar usar el título generado por IA
-    titulo = info.get('marketing_content', {}).get('titulo_h1', '')
-    
-    if not titulo:
-        # Construir título inteligente evitando N/D
-        marca = info.get('marca', '').strip()
-        modelo = info.get('modelo', '').strip()
-        potencia = info.get('potencia_kva', '').strip()
-        
-        if marca and marca not in valores_no_deseados:
-            titulo = marca
-        else:
-            titulo = "Generador"
-            
-        if modelo and modelo not in valores_no_deseados:
-            titulo += f" {modelo}"
-        elif potencia and potencia not in valores_no_deseados:
-            # Si no hay modelo, usar la potencia como identificador
-            titulo += f" {potencia} KVA"
-            
-        # Agregar tipo de combustible al título si es relevante
-        tipo_combustible = caracteristicas.get('tipo_combustible', 'diesel')
-        if tipo_combustible != 'diesel':  # Solo mostrar si no es diesel (el estándar)
-            titulo += f" a {tipo_combustible.capitalize()}"
-            
-        # Si el título es muy genérico, usar el nombre completo del producto
-        if titulo == "Generador" or len(titulo.split()) < 2:
-            nombre_producto = info.get('nombre', '')
-            if nombre_producto and nombre_producto not in valores_no_deseados:
-                titulo = nombre_producto
-
-    # Construir subtítulo con características destacadas
-    tags = []
-    
-    # Agregar potencia al subtítulo si no está en el título
-    potencia = info.get('potencia_kva', '').strip()
-    if potencia and potencia not in valores_no_deseados and potencia not in titulo:
-        tags.append(f"{potencia} KVA")
-    
-    # Características especiales
-    if caracteristicas.get('tiene_tta'):
-        tags.append("TRANSFERENCIA AUTOMATICA")
-    if caracteristicas.get('tiene_cabina'):
-        tags.append("CABINADO INSONORIZADO")
-    if caracteristicas.get('es_inverter'):
-        tags.append("TECNOLOGIA INVERTER")
-        
-    # Si hay características especiales de IA
-    caracteristicas_especiales = info.get('caracteristicas_especiales', [])
-    for feature in caracteristicas_especiales[:2]:  # Máximo 2 características adicionales
-        if feature and len(feature) < 30:  # Solo características cortas
-            tags.append(eliminar_tildes_y_especiales(feature.upper()))
-
-    # Usar subtítulo de IA si está disponible y no hay tags
-    subtitulo_ia = info.get('marketing_content', {}).get('subtitulo_p', '')
-    if subtitulo_ia and not tags:
-        subtitulo = eliminar_tildes_y_especiales(subtitulo_ia)
-    else:
-        subtitulo = " | ".join(tags) if tags else "Solucion energetica profesional de ultima generacion"
-
-    # Limpiar tildes del título y subtítulo
-    titulo = eliminar_tildes_y_especiales(titulo)
-    subtitulo = eliminar_tildes_y_especiales(subtitulo)
-
-    return f'''
-    <div class="hero-header animate-fade-in">
-        <h1>{titulo}</h1>
-        <p>{subtitulo}</p>
-    </div>
-    '''
-
-def generar_info_cards_section(info, caracteristicas):
-    """Genera las tarjetas de información principal."""
-    tipo_combustible = caracteristicas.get('tipo_combustible', 'diesel')
-    icono_combustible = ICONOS_SVG.get(tipo_combustible, ICONOS_SVG['diesel'])
-    
-    return f'''
-    <div class="info-cards">
-        <!-- Card Potencia -->
-        <div class="info-card">
-            <div class="icon-wrapper">{ICONOS_SVG['potencia']}</div>
-            <div class="info-content">
-                <h4>POTENCIA</h4>
-                <div class="value">{info.get('potencia_kva', 'N/D')}</div>
-                <div class="sub-value">{info.get('potencia_kw', '')}</div>
-            </div>
-        </div>
-        
-        <!-- Card Motor -->
-        <div class="info-card">
-            <div class="icon-wrapper">{ICONOS_SVG['motor']}</div>
-            <div class="info-content">
-                <h4>MOTOR</h4>
-                <div class="value" style="font-size: 20px;">{info.get('marca_motor', '')} {info.get('modelo_motor', info.get('motor', 'N/D'))}</div>
-                <div class="sub-value">{info.get('cilindrada_cc', '')} cc</div>
-            </div>
-        </div>
-        
-        <!-- Card Combustible -->
-        <div class="info-card">
-            <div class="icon-wrapper">{icono_combustible}</div>
-            <div class="info-content">
-                <h4>COMBUSTIBLE</h4>
-                <div class="value" style="font-size: 20px;">{tipo_combustible.upper()}</div>
-                <div class="sub-value">{info.get('consumo_combustible_75', 'N/D')} L/h al 75%</div>
-            </div>
-        </div>
-    </div>
-    '''
-
-def generar_specs_table_section(info):
-    """Genera la tabla de especificaciones técnicas."""
-    specs_map = {
-        'potencia_kva': ('Potencia KVA', 'potencia'),
-        'potencia_kw': ('Potencia KW', 'potencia'),
-        'voltaje': ('Voltaje', 'voltaje'),
-        'frecuencia': ('Frecuencia', 'frecuencia'),
-        'marca_motor': ('Marca Motor', 'motor'),
-        'modelo_motor': ('Modelo Motor', 'motor'),
-        'cilindrada_cc': ('Cilindrada (cc)', 'cilindrada'),
-        'consumo_combustible_75': ('Consumo (75%)', 'consumo'),
-        'nivel_sonoro_dba_7m': ('Nivel Sonoro (7m)', 'ruido'),
-        'dimensiones_mm': ('Dimensiones (mm)', 'dimensiones'),
-        'peso_kg': ('Peso (kg)', 'peso'),
-    }
-    
-    # Generar filas HTML
-    rows_html = ""
-    for key, (label, icon_key) in specs_map.items():
-        value = info.get(key)
-        if value:
-            rows_html += f'''
-            <tr>
-                <td class="spec-label">{ICONOS_SVG.get(icon_key, '')} {label}</td>
-                <td class="spec-value">{value}</td>
-            </tr>
-            '''
-    
-    # Add additional specs from AI
-    for spec in info.get('specs_adicionales', []):
-        rows_html += f'''
-        <tr>
-            <td class="spec-label">{ICONOS_SVG.get('specs', '')} {spec.get('label', '')}</td>
-            <td class="spec-value">{spec.get('value', '')}</td>
-        </tr>
-        '''
-        
-    return f'''
-    <div class="specs-section">
-        <div class="specs-header">{ICONOS_SVG['specs']} <h2>ESPECIFICACIONES TÉCNICAS COMPLETAS</h2></div>
-        <div class="specs-table">
-            <table>
-                <thead><tr><th style="width: 40%;">CARACTERÍSTICA</th><th>ESPECIFICACIÓN</th></tr></thead>
-                <tbody>{rows_html}</tbody>
-            </table>
-        </div>
-    </div>
-    '''
-
-def generar_feature_badges_section(caracteristicas):
-    """Genera los badges de características especiales."""
-    badges_html = ""
-    
-    if caracteristicas.get('tiene_tta'):
-        badges_html += f'''
-        <div class="feature-badge">
-            {ICONOS_SVG['lightning']}
-            <span>{eliminar_tildes_y_especiales("TABLERO DE TRANSFERENCIA AUTOMATICA INCLUIDO")}</span>
-        </div>
-        '''
-    
-    if caracteristicas.get('tiene_cabina'):
-        badges_html += f'''
-        <div class="feature-badge green">
-            {ICONOS_SVG['shield']}
-            <span>{eliminar_tildes_y_especiales("CABINA INSONORIZADA DE ALUMINIO")}</span>
-        </div>
-        '''
-    
-    if caracteristicas.get('es_inverter'):
-        badges_html += f'''
-        <div class="feature-badge purple">
-            {ICONOS_SVG['tools']}
-            <span>{eliminar_tildes_y_especiales("TECNOLOGIA INVERTER - MAXIMA EFICIENCIA")}</span>
-        </div>
-        '''
-    
-    return f'<div class="feature-badges">{badges_html}</div>' if badges_html else ''
-
-def generar_speech_sections(info, marketing_content):
-    """Genera las secciones de speech de ventas usando contenido de IA."""
-    
-    # Usar contenido de IA si está disponible, de lo contrario, un mensaje genérico.
-    titulo_h1 = marketing_content.get('titulo_h1', info.get('nombre', ''))
-    subtitulo_p = marketing_content.get('subtitulo_p', 'Una solucion robusta y confiable para sus necesidades energeticas.')
-    puntos_clave_li = marketing_content.get('puntos_clave_li', [])
-    descripcion_detallada_p = marketing_content.get('descripcion_detallada_p', [])
-    aplicaciones_ideales_li = marketing_content.get('aplicaciones_ideales_li', [])
-
-    # Función interna para generar listas con iconos dinámicos
-    def generar_lista_con_iconos(items):
-        if not items:
-            return ""
-        items_html = ""
-        for item in items:
-            cleaned_item = eliminar_tildes_y_especiales(item)
-            icono_svg = obtener_icono_para_item(cleaned_item)
-            items_html += f"<li>{icono_svg}<span>{cleaned_item}</span></li>"
-        return f"<ul>{items_html}</ul>"
-
-    # Generar HTML para cada sección
-    puntos_clave_html = generar_lista_con_iconos(puntos_clave_li)
-    aplicaciones_html = generar_lista_con_iconos(aplicaciones_ideales_li)
-    descripcion_html = "".join(f"<p>{eliminar_tildes_y_especiales(p)}</p>" for p in descripcion_detallada_p)
-
-    sections = [
-        {'icon': 'potencia', 'title': 'PUNTOS CLAVE', 'content': puntos_clave_html},
-        {'icon': 'shield', 'title': 'DESCRIPCION DETALLADA', 'content': descripcion_html},
-        {'icon': 'tools', 'title': 'APLICACIONES IDEALES', 'content': aplicaciones_html}
-    ]
-    
-    html = ""
-    for section in sections:
-        if section['content']:
-            html += f'''
-            <div class="speech-section">
-                <div class="speech-header">
-                    <div class="speech-icon">
-                        {ICONOS_SVG.get(section['icon'], '')}
-                    </div>
-                    <h3>{eliminar_tildes_y_especiales(section['title'])}</h3>
-                </div>
-                {section['content']}
-            </div>
-            '''
-    
-    return html
-
-def generar_benefits_section():
-    """Genera la sección de beneficios."""
-    benefits = [
-        {
-            'icon': 'shield',
-            'title': 'GARANTIA OFICIAL',
-            'desc': 'Respaldo total del fabricante con garantia extendida'
-        },
-        {
-            'icon': 'quality',
-            'title': 'CALIDAD CERTIFICADA',
-            'desc': 'Cumple con todas las normas internacionales'
-        },
-        {
-            'icon': 'tools',
-            'title': 'SERVICIO TECNICO',
-            'desc': 'Red nacional de servicio y repuestos originales'
-        },
-        {
-            'icon': 'money',
-            'title': 'FINANCIACION',
-            'desc': 'Multiples opciones de pago y financiacion a medida'
-        }
-    ]
-    
-    cards_html = ""
-    for benefit in benefits:
-        cards_html += f'''
-        <div class="benefit-card">
-            <div class="benefit-icon">
-                {ICONOS_SVG.get(benefit['icon'], '')}
-            </div>
-            <h4>{eliminar_tildes_y_especiales(benefit['title'])}</h4>
-            <p>{eliminar_tildes_y_especiales(benefit['desc'])}</p>
-        </div>
-        '''
-    
-    return f'''
-    <div class="benefits-section">
-        <div class="benefits-header">
-            <h3>POR QUE ELEGIRNOS</h3>
-        </div>
-        <div class="benefits-grid">
-            {cards_html}
-        </div>
-    </div>
-    '''
-
-def generar_cta_section(info, config):
-    """Genera la sección de Call-to-Action."""
-    nombre_producto = eliminar_tildes_y_especiales(info.get('nombre', 'este producto'))
-    whatsapp = config.get('whatsapp', '541139563099')
-    email = config.get('email', 'info@generadores.ar')
-    pdf_url = info.get('pdf_url', '#')
-    
-    if pdf_url and not pdf_url.startswith('http'):
-        pdf_url = f"https://storage.googleapis.com/fichas_tecnicas/{pdf_url}"
-    
-    whatsapp_msg = f"Hola,%20vengo%20de%20ver%20el%20{nombre_producto.replace(' ', '%20')}%20en%20la%20tienda%20y%20quisiera%20mas%20informacion"
-    email_subject = f"Consulta%20-%20{nombre_producto.replace(' ', '%20')}"
-    email_body = f"Hola,%0A%0AQuisiera%20solicitar%20una%20cotizacion%20para%20el%20producto:%20{nombre_producto.replace(' ', '%20')}.%0A%0AGracias."
-    
-    return f'''
-    <div class="cta-section">
-        <h3>LISTO PARA POTENCIAR TU OPERACION?</h3>
-        <p>No espere mas. Contacte a nuestros especialistas y asegure su energia hoy mismo.</p>
-        
-        <div class="cta-buttons">
-            <a href="https://wa.me/{whatsapp}?text={whatsapp_msg}" 
-               target="_blank"
-               class="cta-button whatsapp">
-                {ICONOS_SVG['whatsapp']}
-                <span>CONSULTAR POR WHATSAPP</span>
-            </a>
-            
-            <a href="{pdf_url}" 
-               target="_blank"
-               class="cta-button pdf">
-                {ICONOS_SVG['pdf']}
-                <span>DESCARGAR FICHA TECNICA</span>
-            </a>
-            
-            <a href="mailto:{email}?subject={email_subject}&body={email_body}" 
-               class="cta-button email">
-                {ICONOS_SVG['email']}
-                <span>SOLICITAR COTIZACION</span>
-            </a>
-        </div>
-    </div>
-    '''
-
-def generar_contact_section(config):
-    """Genera la sección de contacto."""
-    return f'''
-    <div class="contact-footer">
-        <h4>CONTACTO DIRECTO</h4>
-        
-        <div class="contact-grid">
-            <div class="contact-item">
-                <div class="contact-icon">
-                    {ICONOS_SVG['phone']}
-                </div>
-                <div class="contact-info">
-                    <div class="label">Telefono / WhatsApp</div>
-                    <a href="https://wa.me/{config.get('whatsapp', '')}">{config.get('telefono_display', '')}</a>
-                </div>
-            </div>
-            
-            <div class="contact-item">
-                <div class="contact-icon">
-                    {ICONOS_SVG['email']}
-                </div>
-                <div class="contact-info">
-                    <div class="label">Email</div>
-                    <a href="mailto:{config.get('email', '')}">{config.get('email', '')}</a>
-                </div>
-            </div>
-            
-            <div class="contact-item">
-                <div class="contact-icon">
-                    {ICONOS_SVG['web']}
-                </div>
-                <div class="contact-info">
-                    <div class="label">Sitio Web</div>
-                    <a href="https://{config.get('website', '')}" target="_blank">{config.get('website', '')}</a>
-                </div>
-            </div>
-        </div>
-    </div>
-    '''
-
-def generar_css_hover_effects():
-    """Genera los estilos CSS para efectos hover como en el modelo exacto."""
-    return '''
-    <style>
-        /* Estilos para efectos hover */
-        .card-hover {
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-        .card-hover:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
-        }
-        
-        .benefit-card {
-            transition: all 0.3s ease;
-        }
-        .benefit-card:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15) !important;
-        }
-        .benefit-card:hover .icon-circle {
-            transform: scale(1.1);
-            background: #ff6600 !important;
-        }
-        .benefit-card:hover .icon-circle svg {
-            fill: white !important;
-        }
-        
-        .icon-circle {
-            transition: all 0.3s ease;
-        }
-        
-        .btn-hover {
-            transition: all 0.3s ease !important;
-            position: relative;
-            overflow: hidden;
-        }
-        .btn-hover:hover {
-            transform: translateY(-3px) scale(1.05) !important;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.25) !important;
-        }
-        
-        .spec-row {
-            transition: all 0.2s ease;
-        }
-        .spec-row:hover {
-            background: #fff3e0 !important;
-            transform: translateX(5px);
-        }
-        
-        .content-section {
-            transition: all 0.3s ease;
-        }
-        .content-section:hover {
-            transform: translateX(10px);
-            box-shadow: 0 5px 20px rgba(0,0,0,0.1) !important;
-            border-left-width: 8px !important;
-        }
-        
-        .contact-link {
-            transition: all 0.3s ease;
-            display: inline-block;
-        }
-        .contact-link:hover {
-            transform: scale(1.05);
-            color: #ff8833 !important;
-        }
-        
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
-        
-        .special-feature {
-            animation: pulse 2s infinite;
-        }
-        .special-feature:hover {
-            animation: none;
-            transform: scale(1.05);
-        }
-    </style>
-    '''
-
 def generar_descripcion_detallada_html_premium(row, config, modelo_ia=None, print_callback=print):
     """
     Función principal que orquesta la generación de la descripción HTML premium.
     """
-    # 1. Extraer y procesar datos del producto
     info_inicial = extraer_info_tecnica(row)
-    info = info_inicial.copy() # Usar datos base como fallback
+    info = info_inicial.copy()
     
     pdf_url = info_inicial.get('pdf_url', '')
     texto_pdf = None
@@ -783,18 +193,15 @@ def generar_descripcion_detallada_html_premium(row, config, modelo_ia=None, prin
         texto_pdf = extraer_texto_pdf(pdf_url, print_callback)
 
     marketing_content = {}
-    # 2. Enriquecer datos con IA si es posible
     if texto_pdf and modelo_ia:
         print("🤖 Iniciando extracción y generación de contenido con IA...")
         try:
-            # Cargar prompts
             prompt_path = Path(__file__).parent / 'templates' / 'detailed_product_prompt.json'
             with open(prompt_path, 'r', encoding='utf-8') as f:
                 prompts = json.load(f)
 
-            # Fase 1: Extracción de datos
             prompt_extract = prompts['prompt_extract'].format(
-                pdf_text=texto_pdf[:4000], # Limitar para no exceder tokens
+                pdf_text=texto_pdf[:4000],
                 nombre=info.get('nombre'),
                 familia=info.get('familia'),
                 modelo=info.get('modelo'),
@@ -802,13 +209,11 @@ def generar_descripcion_detallada_html_premium(row, config, modelo_ia=None, prin
             )
             response_extract = modelo_ia.generate_content(prompt_extract)
             
-            # Limpiar y parsear la respuesta JSON de la IA
             json_text = response_extract.text.strip().replace('```json', '').replace('```', '').strip()
             extracted_data = json.loads(json_text)
             info.update(extracted_data)
             print("✅ Datos extraídos con IA.")
 
-            # Fase 2: Generación de contenido de marketing
             prompt_generate = prompts['prompt_generate'].format(product_data_json=json.dumps(info, indent=2))
             response_generate = modelo_ia.generate_content(prompt_generate)
             json_text_marketing = response_generate.text.strip().replace('```json', '').replace('```', '').strip()
@@ -820,16 +225,11 @@ def generar_descripcion_detallada_html_premium(row, config, modelo_ia=None, prin
             
     caracteristicas = validar_caracteristicas_producto(info, texto_pdf)
     
-    # Integrar el contenido de marketing en info para que esté disponible en todas las funciones
     if marketing_content:
         info['marketing_content'] = marketing_content
     
-    # 3. Generar cada sección del HTML
     titulo = generar_titulo_producto(info, caracteristicas)
     subtitulo = generar_subtitulo_producto(info, caracteristicas)
-    
-    # 4. Ensamblar el HTML final con estilo inline exacto
-    nombre_producto = eliminar_tildes_y_especiales(info.get('nombre', 'este producto'))
     
     html_completo = f"""<!DOCTYPE html>
 <html lang="es">
@@ -844,11 +244,11 @@ def generar_descripcion_detallada_html_premium(row, config, modelo_ia=None, prin
         
         {generar_hero_section_inline(titulo, subtitulo)}
         
-        {generar_info_cards_inline(info, caracteristicas)}
+        {generar_info_cards_inline_mejorado(info, caracteristicas)}
         
         {generar_specs_table_inline(info)}
         
-        {generar_feature_badge_inline(caracteristicas)}
+        {generar_badges_caracteristicas(info, caracteristicas)}
         
         {generar_content_sections_inline(info, marketing_content)}
         

@@ -17,8 +17,8 @@ def generar_html_generador(info, marketing_content, caracteristicas, config):
     Genera el HTML completo para la categoría 'generador'.
     Esta es la plantilla principal y más detallada.
     """
-    # Reutilizar la lógica de `generar_info_cards_inline` de premium_generator_v2
-    from .premium_generator_v2 import generar_info_cards_inline
+    # Reutilizar la lógica de `generar_info_cards_inline_mejorado` de premium_generator_v2
+    from .premium_generator_v2 import generar_info_cards_inline_mejorado
     
     titulo = marketing_content.get('titulo_h1', info.get('nombre', 'Producto'))
     subtitulo = marketing_content.get('subtitulo_p', 'Solución energética de última generación')
@@ -36,7 +36,7 @@ def generar_html_generador(info, marketing_content, caracteristicas, config):
         
         {generar_hero_section_inline(titulo, subtitulo)}
         
-        {generar_info_cards_inline(info, caracteristicas)}
+        {generar_info_cards_inline_mejorado(info, caracteristicas)}
         
         {generar_specs_table_inline(info)}
         

@@ -90,7 +90,7 @@ class DataValidator:
             return df, issues
 
         # Contar cuántas columnas de una fila coinciden con valores de encabezado
-        header_match_count = pd.DataFrame(index=df.index, columns=self.invalid_values.keys(), dtype=int)
+        header_match_count = pd.DataFrame(index=df.index, columns=list(self.invalid_values.keys()), dtype=int)
         for col, invalid_list in self.invalid_values.items():
             if col in df.columns:
                 header_match_count[col] = df[col].isin(invalid_list).astype(int)
@@ -147,9 +147,7 @@ class DataValidator:
         
         removed_df = df[~valid_mask]
         if not removed_df.empty:
-            self.logger.warning(f"_validate_required_fields: Removidas {len(removed_df)} filas por campos inválidos. Muestra:")
-            for _, row in removed_df.head(3).iterrows():
-                self.logger.warning(f"  - Fila removida (required): {row.to_dict()}")
+            self.logger.warning(f"_validate_required_fields: Removidas {len(removed_df)} filas por campos inválidos.")
 
         df_clean = df[valid_mask].reset_index(drop=True)
         return df_clean, issues
@@ -181,9 +179,7 @@ class DataValidator:
         
         removed_df = df[duplicate_mask]
         if not removed_df.empty:
-            self.logger.warning(f"_remove_duplicates: Removidas {len(removed_df)} filas duplicadas. Muestra:")
-            for _, row in removed_df.head(3).iterrows():
-                self.logger.warning(f"  - Fila removida (duplicate): {row.to_dict()}")
+            self.logger.warning(f"_remove_duplicates: Removidas {len(removed_df)} filas duplicadas.")
 
         df_clean = df[~duplicate_mask].reset_index(drop=True)
         return df_clean, issues

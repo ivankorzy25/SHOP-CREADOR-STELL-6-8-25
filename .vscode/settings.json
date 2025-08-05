@@ -1,4 +1,17 @@
 {
     "python-envs.defaultEnvManager": "ms-python.python:system",
-    "python-envs.pythonProjects": []
+    "python-envs.pythonProjects": [],
+    "workbench.editor.alwaysShowEditorActions": true,
+    "workbench.editor.autoLockGroups": {
+        "pdf.view": true,
+        "workbench.input.interactive": true,
+        "imagePreview.previewEditor": true,
+        "vscode.audioPreview": true,
+        "vscode.videoPreview": true,
+        "pdf.preview": true,
+        "mainThreadWebview-markdown.preview": true,
+        "xlsxViewer.csv": true,
+        "xlsxViewer.xlsx": true,
+        "workbench.editors.gettingStartedInput": true
+    }
 }

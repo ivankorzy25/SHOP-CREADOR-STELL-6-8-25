@@ -4,7 +4,7 @@ Gestiona la creación de descripciones HTML usando Google Gemini
 """
 
 import json
-from typing import Dict
+from typing import Dict, Optional
 import google.generativeai as genai
 from pathlib import Path
 import traceback
@@ -13,24 +13,30 @@ import traceback
 from .product_templates import TEMPLATE_REGISTRY
 from .premium_generator_v2 import (
     extraer_contenido_pdf, 
-    validar_caracteristicas_producto,
-    extraer_info_tecnica
+    validar_caracteristicas_producto
+)
+from .premium_generator import extraer_info_tecnica
+from .compatibility_fixes import (
+    ensure_dict,
+    ensure_caracteristicas_dict,
+    safe_contenido_pdf_access,
+    safe_json_parse
 )
 
 class AIHandler:
     """Maneja la generación de descripciones con IA"""
     
-    def __init__(self, api_key: str = None):
+    def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key
         self.model = None
         self.current_prompt_version = "base"
         self.module_path = Path(__file__).parent
         self.product_types = self._load_product_types()
         
-        if api_key:
+        if api_key is not None:
             self.initialize_model(api_key)
     
-    def initialize_model(self, api_key: str):
+    def initialize_model(self, api_key: str) -> bool:
         """Inicializa y valida el modelo de Google Gemini"""
         try:
             self.api_key = api_key
@@ -57,12 +63,12 @@ class AIHandler:
 
             # Prueba rápida para asegurar que el modelo está listo
             self.model.generate_content("Test")
-            print(f"✅ Modelo de IA inicializado correctamente: gemini-1.5-flash")
+            print(f"[SUCCESS] Modelo de IA inicializado correctamente: gemini-1.5-flash")
             return True
                     
         except Exception as e:
             error_message = str(e)
-            print(f"❌ Error al inicializar el modelo: {error_message}")
+            print(f"[ERROR] Error al inicializar el modelo: {error_message}")
             traceback.print_exc()
             self.model = None
             return False
@@ -75,9 +81,11 @@ class AIHandler:
                 return json.load(f)
         return {}
 
-    def _generate_fallback_description(self, product_info: Dict, error_message: str) -> str:
+    def _generate_fallback_description(self, product_info: Optional[Dict], error_message: Optional[str]) -> str:
         """Genera una descripción HTML de fallback con estilos y un mensaje de error claro."""
+        product_info = product_info or {}
         nombre_producto = product_info.get('nombre', 'Producto Desconocido')
+        error_message = error_message or "Error desconocido"
         error_limpio = error_message.split('generated_content=')[0].strip() # Limpiar mensajes largos
         return f"""
         <!DOCTYPE html>
@@ -93,12 +101,15 @@ class AIHandler:
         </body></html>
         """
 
-    def generate_description(self, product_info: Dict, config: Dict = None, prompt_template: str = None) -> str:
+    def generate_description(self, product_info: Optional[Dict], config: Optional[Dict] = None, prompt_template: Optional[str] = None) -> str:
         """
         Genera la descripción HTML del producto de forma dinámica basada en la categoría.
         """
         if not self.model:
             return self._generate_fallback_description(product_info, "El modelo de IA no está configurado.")
+
+        if not product_info:
+            return self._generate_fallback_description(None, "No se proporcionó información del producto.")
 
         try:
             # 1. Extraer datos base y del PDF
@@ -115,9 +126,19 @@ class AIHandler:
             with open(prompt_path, 'r', encoding='utf-8') as f:
                 prompts = json.load(f)
             
+            # Manejar contenido_pdf de forma segura
+            pdf_text = ""
+            pdf_tables = ""
+            if contenido_pdf:
+                if isinstance(contenido_pdf, dict):
+                    pdf_text = contenido_pdf.get('text', '')[:4000]
+                    pdf_tables = contenido_pdf.get('tables_markdown', '')
+                elif isinstance(contenido_pdf, str):
+                    pdf_text = contenido_pdf[:4000]
+            
             prompt_extract = prompts['prompt_extract'].format(
-                pdf_text=contenido_pdf['text'][:4000] if contenido_pdf else "",
-                pdf_tables_as_markdown=contenido_pdf['tables_markdown'] if contenido_pdf else "",
+                pdf_text=pdf_text,
+                pdf_tables_as_markdown=pdf_tables,
                 nombre=info.get('nombre'),
                 familia=info.get('familia'),
                 modelo=info.get('modelo'),
@@ -161,7 +182,7 @@ class AIHandler:
             if 'cummins' in nombre_lower or 'yns' in modelo_lower or 'cs' in modelo_lower:
                 categoria = 'generador_cummins'
             
-            print(f"✅ Categoría de producto identificada: {categoria}")
+            print(f"[INFO] Categoría de producto identificada: {categoria}")
 
             # 3. Usar IA para generar contenido de marketing
             prompt_generate = prompts['prompt_generate'].format(
@@ -170,16 +191,17 @@ class AIHandler:
             )
             response_generate = self.model.generate_content(prompt_generate)
             json_text_marketing = response_generate.text
-            start_index_m = json_text_marketing.find('{')
-            end_index_m = json_text_marketing.rfind('}') + 1
-            if start_index_m != -1 and end_index_m != -1:
-                json_str_m = json_text_marketing[start_index_m:end_index_m]
-                marketing_content = json.loads(json_str_m)
-            else:
+            # Parse seguro del JSON de marketing
+            marketing_content = safe_json_parse(json_text_marketing)
+            if not marketing_content:
                 raise ValueError("No se encontró un objeto JSON válido en la respuesta de marketing.")
             
             # 4. Seleccionar y renderizar la plantilla HTML correcta
-            caracteristicas = validar_caracteristicas_producto(info, contenido_pdf['text'] if contenido_pdf else "")
+            # Asegurar que contenido_pdf sea manejado correctamente
+            texto_pdf = safe_contenido_pdf_access(contenido_pdf)
+            caracteristicas = validar_caracteristicas_producto(info, texto_pdf)
+            # Asegurar que caracteristicas sea un diccionario
+            caracteristicas = ensure_caracteristicas_dict(caracteristicas)
             
             # Cargar el prompt de generación específico para la categoría
             prompt_generate_path = self.module_path / "templates" / f"{categoria}_prompt.json"
@@ -192,29 +214,26 @@ class AIHandler:
             prompt_generate = specific_prompts['prompt_generate'].format(product_data_json=json.dumps(info, indent=2))
             response_generate = self.model.generate_content(prompt_generate)
             json_text_marketing = response_generate.text
-            start_index_m2 = json_text_marketing.find('{')
-            end_index_m2 = json_text_marketing.rfind('}') + 1
-            if start_index_m2 != -1 and end_index_m2 != -1:
-                json_str_m2 = json_text_marketing[start_index_m2:end_index_m2]
-                marketing_content = json.loads(json_str_m2)
-            else:
+            # Parse seguro del segundo JSON de marketing
+            marketing_content = safe_json_parse(json_text_marketing)
+            if not marketing_content:
                 raise ValueError("No se encontró un objeto JSON válido en la respuesta de marketing específica.")
 
             template_function = TEMPLATE_REGISTRY.get(categoria, TEMPLATE_REGISTRY['default'])
             
-            print(f"🚀 Usando plantilla y prompt para '{categoria}'.")
+            print(f"[INFO] Usando plantilla y prompt para '{categoria}'.")
             return template_function(info, marketing_content, caracteristicas, config)
 
         except Exception as e:
-            print(f"❌ Error crítico durante la generación: {e}")
+            print(f"[ERROR] Error crítico durante la generación: {e}")
             traceback.print_exc()
             return self._generate_fallback_description(product_info, str(e))
 
-    def _generate_html_with_custom_prompt(self, product_info: Dict, config: Dict, prompt_template: str) -> str:
+    def _generate_html_with_custom_prompt(self, product_info: Optional[Dict], config: Optional[Dict], prompt_template: str) -> str:
         """Genera descripción con un prompt personalizado."""
         full_context = {
-            "product_data": product_info,
-            "contact_config": config
+            "product_data": product_info or {},
+            "contact_config": config or {}
         }
         
         system_message = f"""
@@ -231,6 +250,7 @@ class AIHandler:
         Genera únicamente el código HTML final. No incluyas explicaciones ni texto adicional. Comienza con `<!DOCTYPE html>`.
         """
         
+        assert self.model is not None
         response = self.model.generate_content(system_message)
         html_content = response.text.strip()
 

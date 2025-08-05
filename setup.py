@@ -31,12 +31,12 @@ def install_requirements():
         print(f"  Instalando {package}...")
         subprocess.check_call([sys.executable, '-m', 'pip', 'install', package])
     
-    print("✅ Dependencias instaladas")
+    print("[OK] Dependencias instaladas")
 
 def create_directory_structure():
     """Crea la estructura de directorios necesaria"""
     
-    print("\n📁 Creando estructura de directorios...")
+    print("\n[INFO] Creando estructura de directorios...")
     
     directories = [
         'logs',
@@ -61,12 +61,12 @@ def create_directory_structure():
         Path(directory).mkdir(parents=True, exist_ok=True)
         print(f"  ✓ {directory}")
     
-    print("✅ Estructura creada")
+    print("[OK] Estructura creada")
 
 def create_config_files():
     """Crea archivos de configuración por defecto"""
     
-    print("\n⚙️ Creando archivos de configuración...")
+    print("\n[CONFIG] Creando archivos de configuración...")
     
     # Configuración de base de datos
     db_config = {
@@ -77,7 +77,7 @@ def create_config_files():
         "table": "shop_master_gaucho_completo"
     }
     
-    with open('config/database_config.json', 'w') as f:
+    with open('config/database_config.json', 'w', encoding='utf-8') as f:
         import json
         json.dump(db_config, f, indent=2)
     
@@ -92,11 +92,11 @@ def create_config_files():
         "disable_images": False
     }
     
-    with open('config/browser_config.json', 'w') as f:
+    with open('config/browser_config.json', 'w', encoding='utf-8') as f:
         json.dump(browser_config, f, indent=2)
     
     print("  ✓ config/browser_config.json")
-    print("✅ Configuración creada")
+    print("[OK] Configuración creada")
 
 def copy_module_files():
     """Copia los archivos de los módulos a las ubicaciones correctas"""
@@ -106,7 +106,7 @@ def copy_module_files():
     # Aquí deberías copiar los archivos HTML, CSS y JS de cada módulo
     # a las carpetas static/modules correspondientes
     
-    print("⚠️ Por favor, copia manualmente los archivos de cada módulo:")
+    print("[WARN] Por favor, copia manualmente los archivos de cada módulo:")
     print("  - products.html, products.css, products.js → static/modules/products/")
     print("  - navigation.html, navigation.css, navigation.js → static/modules/navigation/")
     print("  - generator.html, generator.css, generator.js → static/modules/ai_generator/")
@@ -132,22 +132,22 @@ def main():
         
         # 4. Instrucciones finales
         print("\n" + "="*50)
-        print("✅ INSTALACIÓN COMPLETADA")
+        print("[OK] INSTALACIÓN COMPLETADA")
         print("="*50)
         
-        print("\n📋 SIGUIENTES PASOS:")
+        print("\n[INFO] SIGUIENTES PASOS:")
         print("1. Edita config/database_config.json con tus credenciales MySQL")
         print("2. Copia los archivos de módulos a static/modules/")
         print("3. Ejecuta: python main.py")
         print("4. Abre tu navegador en: http://localhost:5002")
         
-        print("\n💡 TIPS:")
+        print("\n[TIPS] TIPS:")
         print("- Obtén tu API key de Google en: https://makersuite.google.com/app/apikey")
         print("- Asegúrate de tener Chrome instalado")
         print("- El perfil de Chrome se guardará en browser_profiles/")
         
     except Exception as e:
-        print(f"\n❌ Error durante la instalación: {e}")
+        print(f"\n[ERROR] Error durante la instalación: {e}")
         sys.exit(1)
 
 if __name__ == '__main__':

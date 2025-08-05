@@ -1,0 +1,20 @@
+# Dependencias principales
+flask
+flask-cors
+selenium==4.32.0
+pandas
+openpyxl==3.1.2
+pymysql==1.1.0
+google-generativeai==0.3.0
+requests==2.31.0
+PyPDF2==3.0.1
+PyMuPDF>=1.23.8
+webdriver-manager==4.0.2
+pywin32==308
+cryptography==45.0.5
+cloud-sql-python-connector[pymysql]
+
+# Dependencias adicionales
+python-dotenv==1.0.0
+werkzeug==2.3.7
+certifi

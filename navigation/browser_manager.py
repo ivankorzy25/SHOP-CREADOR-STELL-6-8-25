@@ -42,7 +42,7 @@ class BrowserManager:
         config_file = Path("config/browser_config.json")
         if config_file.exists():
             try:
-                with open(config_file, 'r') as f:
+                with open(config_file, 'r', encoding='utf-8') as f:
                     user_config = json.load(f)
                     default_config.update(user_config)
             except Exception as e:
@@ -179,7 +179,7 @@ class BrowserManager:
                 print(f"[ERROR] Error con ChromeDriver: {e}")
                 raise Exception(f"No se pudo configurar ChromeDriver: {e}")
             
-            print(f"✅ ChromeDriver instalado en: {chromedriver_path}")
+            print(f"[OK] ChromeDriver instalado en: {chromedriver_path}")
             
             # Verificar que el archivo existe y es ejecutable
             if not Path(chromedriver_path).exists():
@@ -199,7 +199,7 @@ class BrowserManager:
             self.is_running = True
             self.start_time = time.time()
             
-            print(f"✅ Navegador iniciado con perfil limpio: {self.profile_path}")
+            print(f"[OK] Navegador iniciado con perfil limpio: {self.profile_path}")
             
             return {
                 "success": True,
@@ -209,14 +209,14 @@ class BrowserManager:
             }
             
         except SessionNotCreatedException as e:
-            print(f"❌ Error: Perfil en uso - {e}")
+            print(f"[ERROR] Error: Perfil en uso - {e}")
             return {
                 "success": False,
                 "error": "profile_in_use",
                 "message": "El perfil ya está en uso. Cierra todas las ventanas de Chrome con este perfil."
             }
         except Exception as e:
-            print(f"❌ Error inicializando navegador: {e}")
+            print(f"[ERROR] Error inicializando navegador: {e}")
             return {
                 "success": False,
                 "error": "initialization_failed",
@@ -371,20 +371,20 @@ class BrowserManager:
                         if item_path.exists():
                             if item_path.is_file():
                                 item_path.unlink()
-                                print(f"  ✅ Eliminado archivo: {item}")
+                                print(f"  [OK] Eliminado archivo: {item}")
                             elif item_path.is_dir():
                                 shutil.rmtree(item_path)
-                                print(f"  ✅ Eliminado directorio: {item}")
+                                print(f"  [OK] Eliminado directorio: {item}")
                     except Exception as e:
-                        print(f"  ⚠️ No se pudo eliminar {item}: {e}")
+                        print(f"  [WARN] No se pudo eliminar {item}: {e}")
                         continue
                 
-                print("✅ Limpieza del perfil completada")
+                print("[OK] Limpieza del perfil completada")
                 return True
             else:
-                print("ℹ️ No existe perfil para limpiar")
+                print("[INFO] No existe perfil para limpiar")
                 return True
                 
         except Exception as e:
-            print(f"❌ Error limpiando perfil: {e}")
+            print(f"[ERROR] Error limpiando perfil: {e}")
             return False

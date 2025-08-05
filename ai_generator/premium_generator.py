@@ -124,17 +124,17 @@ def extraer_texto_pdf(pdf_url, print_callback=print):
                 texto_completo += page.get_text()
         
         if texto_completo.strip():
-            print_callback(f"✅ Texto extraído correctamente de {pdf_url}")
+            print_callback(f"[OK] Texto extraído correctamente de {pdf_url}")
             return texto_completo
         else:
-            print_callback(f"⚠️ El PDF en {pdf_url} parece estar vacío o ser una imagen.")
+            print_callback(f"[WARN] El PDF en {pdf_url} parece estar vacío o ser una imagen.")
             return None
 
     except requests.exceptions.RequestException as e:
-        print_callback(f"❌ Error al descargar el PDF desde {pdf_url}: {e}")
+        print_callback(f"[ERROR] Error al descargar el PDF desde {pdf_url}: {e}")
         return None
     except Exception as e:
-        print_callback(f"❌ Error al procesar el PDF desde {pdf_url}: {e}")
+        print_callback(f"[ERROR] Error al procesar el PDF desde {pdf_url}: {e}")
         return None
 
 def validar_caracteristicas_producto(info, texto_pdf):
@@ -212,16 +212,16 @@ def generar_descripcion_detallada_html_premium(row, config, modelo_ia=None, prin
             json_text = response_extract.text.strip().replace('```json', '').replace('```', '').strip()
             extracted_data = json.loads(json_text)
             info.update(extracted_data)
-            print("✅ Datos extraídos con IA.")
+            print("[OK] Datos extraídos con IA.")
 
             prompt_generate = prompts['prompt_generate'].format(product_data_json=json.dumps(info, indent=2))
             response_generate = modelo_ia.generate_content(prompt_generate)
             json_text_marketing = response_generate.text.strip().replace('```json', '').replace('```', '').strip()
             marketing_content = json.loads(json_text_marketing)
-            print("✅ Contenido de marketing generado por IA.")
+            print("[OK] Contenido de marketing generado por IA.")
 
         except Exception as e:
-            print(f"⚠️ Error en el proceso con IA, se usarán datos básicos y contenido por defecto: {e}")
+            print(f"[WARN] Error en el proceso con IA, se usarán datos básicos y contenido por defecto: {e}")
             
     caracteristicas = validar_caracteristicas_producto(info, texto_pdf)
     

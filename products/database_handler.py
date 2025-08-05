@@ -26,7 +26,7 @@ class DatabaseHandler:
         config_file = Path("config/database_config.json")
         if config_file.exists():
             try:
-                with open(config_file, 'r') as f:
+                with open(config_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
             except Exception as e:
                 self.logger.error(f"Error cargando configuración: {e}")

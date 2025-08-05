@@ -121,14 +121,14 @@ class SeleniumHandler:
                     
                     if result["success"]:
                         self.stats["products_processed"] += 1
-                        self._log(f"✅ Producto {product['sku']} actualizado correctamente")
+                        self._log(f"[OK] Producto {product['sku']} actualizado correctamente")
                     else:
                         self.stats["products_failed"] += 1
                         self.stats["errors"].append({
                             "sku": product['sku'],
                             "error": result["error"]
                         })
-                        self._log(f"❌ Error en {product['sku']}: {result['error']}", "ERROR")
+                        self._log(f"[ERROR] Error en {product['sku']}: {result['error']}", "ERROR")
                         
                         # Tomar screenshot en caso de error
                         screenshot = self.navigator.take_screenshot_on_error(f"error_{product['sku']}")

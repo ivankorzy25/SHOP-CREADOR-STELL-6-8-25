@@ -5,11 +5,16 @@ Sistema modular para gestión de productos y descripciones
 
 import sys
 import os
+import io
 import webbrowser
 import threading
 import time
 from pathlib import Path
 from datetime import datetime
+
+# Configurar salida estándar para UTF-8
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 # Agregar módulos al path
 sys.path.append(str(Path(__file__).parent))
@@ -116,7 +121,7 @@ def connect_database():
         success = product_manager.test_database_connection()
         
         if success:
-            logger.info("✅ Conexión a base de datos establecida")
+            logger.info("[OK] Conexión a base de datos establecida")
             
             # Verificar configuración
             db_config = product_manager.db_handler.config
@@ -124,7 +129,7 @@ def connect_database():
             database_name = db_config.get('database', 'N/A')
             table_name = db_config.get('table', 'N/A')
             
-            logger.info(f"📊 Configuración: {database_name}.{table_name} @ {instance_name}")
+            logger.info(f"[INFO] Configuración: {database_name}.{table_name} @ {instance_name}")
             
             # Obtener estadísticas y validar datos
             try:
@@ -137,7 +142,7 @@ def connect_database():
                 
                 if valid_products > 0:
                     app_state['db_connected'] = True
-                    logger.info(f"✅ Conexión validada: {total_products} productos totales, {valid_products} productos válidos")
+                    logger.info(f"[OK] Conexión validada: {total_products} productos totales, {valid_products} productos válidos")
                     
                     return jsonify({
                         'success': True,
@@ -153,21 +158,21 @@ def connect_database():
                         }
                     })
                 else:
-                    logger.warning("⚠️ Conexión establecida pero no se encontraron productos válidos")
+                    logger.warning("[WARN] Conexión establecida pero no se encontraron productos válidos")
                     return jsonify({
                         'success': False,
                         'error': f'Conexión establecida pero no se encontraron productos válidos. Total en BD: {total_products}'
                     })
                     
             except Exception as stats_error:
-                logger.error(f"❌ Error validando datos: {stats_error}")
+                logger.error(f"[ERROR] Error validando datos: {stats_error}")
                 return jsonify({
                     'success': False,
                     'error': f'Conexión establecida pero error validando datos: {str(stats_error)}'
                 })
         else:
             app_state['db_connected'] = False
-            logger.error("❌ Falló la conexión a la base de datos")
+            logger.error("[ERROR] Falló la conexión a la base de datos")
             # Mensaje de error más genérico
             connection_type = "Cloud SQL" if product_manager.db_handler.config.get("use_cloud_sql") else "MySQL local"
             error_message = f"No se pudo conectar a la base de datos ({connection_type}). Verifica las credenciales y la configuración."
@@ -178,7 +183,7 @@ def connect_database():
             
     except Exception as e:
         app_state['db_connected'] = False
-        logger.error(f"❌ Error crítico conectando DB: {e}")
+        logger.error(f"[ERROR] Error crítico conectando DB: {e}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
         return jsonify({
@@ -419,7 +424,7 @@ def validate_api_key():
         if not api_key:
             api_key = ai_handler.api_key
 
-        if ai_handler.initialize_model(api_key):
+        if api_key and ai_handler.initialize_model(api_key):
             app_state['ai_configured'] = True
             return jsonify({'success': True})
         else:
@@ -501,6 +506,7 @@ def extract_pdf_content():
         contenido_pdf = extraer_contenido_pdf(pdf_url)
         
         if contenido_pdf:
+            # Ahora contenido_pdf siempre será un diccionario
             texto_pdf = contenido_pdf.get('text', '')
             tablas_md = contenido_pdf.get('tables_markdown', '')
 
@@ -547,7 +553,9 @@ def test_prompt_with_product():
         if not ai_handler.model:
             if api_key:
                 ai_handler.initialize_model(api_key)
-            elif not ai_handler.initialize_model(ai_handler.api_key):
+            elif ai_handler.api_key:
+                ai_handler.initialize_model(ai_handler.api_key)
+            else:
                 return jsonify({'success': False, 'error': 'No hay modelo de IA configurado.'})
 
         if pdf_content and product_data:
@@ -615,9 +623,9 @@ def ai_prompt_assistant():
 
         assistant = PromptAssistant(ai_handler.model)
         suggestion = assistant.suggest_improvements(
-            current_prompt=data.get('prompt'),
-            user_request=data.get('request'),
-            product_type=data.get('product_type')
+            current_prompt=data.get('prompt') or '',
+            user_request=data.get('request') or '',
+            product_type=data.get('product_type') or ''
         )
         
         # El asistente ahora devuelve todo lo que necesitamos
@@ -645,10 +653,16 @@ def compare_prompt_versions():
         version1_id = data.get('version1')
         version2_id = data.get('version2')
         product_data = data.get('product')
+
+        if not version1_id or not version2_id:
+            return jsonify({'success': False, 'error': 'Se requieren dos versiones para comparar.'})
         
         # Obtener las versiones
         version1 = prompt_manager.get_version(version1_id)
         version2 = prompt_manager.get_version(version2_id)
+
+        if not version1 or not version2:
+            return jsonify({'success': False, 'error': 'Una o ambas versiones no se encontraron.'})
         
         # Usar el handler principal que ya tiene Gemini 2.0 configurado
         temp_handler = ai_handler
@@ -798,7 +812,7 @@ def generate_fallback_preview(product_data):
             </h2>
             
             <div style="background: #fff3e0; padding: 15px; border-left: 4px solid #ff6600; margin: 20px 0;">
-                <h3 style="color: #e65100; margin-top: 0;">📋 Información del Producto</h3>
+                <h3 style="color: #e65100; margin-top: 0;">[INFO] Información del Producto</h3>
                 <ul style="margin: 0; padding-left: 20px;">
                     <li><strong>Producto:</strong> {nombre}</li>
                     <li><strong>Marca:</strong> {marca}</li>
@@ -808,7 +822,7 @@ def generate_fallback_preview(product_data):
             </div>
             
             <div style="background: #e3f2fd; padding: 15px; border-left: 4px solid #2196f3; margin: 20px 0;">
-                <h3 style="color: #1976d2; margin-top: 0;">⚠️ Vista Previa Básica</h3>
+                <h3 style="color: #1976d2; margin-top: 0;">[WARN] Vista Previa Básica</h3>
                 <p style="margin: 0;">Esta es una vista previa básica generada sin IA. Para obtener una descripción completa y optimizada, asegúrate de que el modelo de IA esté disponible.</p>
             </div>
             
@@ -896,13 +910,13 @@ def open_browser():
 def initialize_ai_model():
     """Inicializar el modelo de IA en segundo plano"""
     logger.info("🤖 Intentando inicializar el modelo de IA con la clave por defecto...")
-    if ai_handler.api_key:
+    if ai_handler.api_key is not None:
         if ai_handler.initialize_model(ai_handler.api_key):
             app_state['ai_configured'] = True
-            logger.info("✅ Modelo de IA configurado correctamente al inicio.")
+            logger.info("[SUCCESS] Modelo de IA configurado correctamente al inicio.")
         else:
             app_state['ai_configured'] = False
-            logger.warning("⚠️ No se pudo configurar el modelo de IA al inicio. Se requerirá una clave válida en la UI.")
+            logger.warning("[WARNING] No se pudo configurar el modelo de IA al inicio. Se requerirá una clave válida en la UI.")
     else:
         logger.info("No se encontró API key por defecto. Se configurará desde la UI.")
 
@@ -912,10 +926,10 @@ if __name__ == '__main__':
     
     # Mensaje de inicio
     print("""
-    ╔══════════════════════════════════════════════╗
-    ║       STEL SHOP MANAGER - v1.0.0             ║
-    ║   Sistema Modular de Gestión de Productos    ║
-    ╚══════════════════════════════════════════════╝
+    ============================================
+           STEL SHOP MANAGER - v1.0.0           
+       Sistema Modular de Gestion de Productos  
+    ============================================
     
     Iniciando servidor...
     """)

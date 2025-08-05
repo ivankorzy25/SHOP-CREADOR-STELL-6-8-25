@@ -272,7 +272,7 @@ class ProductManager:
                 'count': len(self.selected_products)
             }
             
-            with open(selection_file, 'w') as f:
+            with open(selection_file, 'w', encoding='utf-8') as f:
                 json.dump(selection_data, f, indent=2)
             
             self.logger.info(f"Selección guardada: {name}")
@@ -290,7 +290,7 @@ class ProductManager:
             if not selection_file.exists():
                 return False
             
-            with open(selection_file, 'r') as f:
+            with open(selection_file, 'r', encoding='utf-8') as f:
                 selection_data = json.load(f)
             
             # Restaurar selección
